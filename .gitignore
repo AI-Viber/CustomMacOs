@@ -1,0 +1,5 @@
+# Build output and local logs
+build/
+*.log
+*-diagnostics.txt
+.DS_Store
