@@ -78,6 +78,22 @@ final class WindowManager {
         }
         AXUIElementSetMessagingTimeout(appEl, 1.0)
 
+        var result = lookupWindow(appEl, how)
+        if result.0 == nil {
+            // Electron apps (Claude, VS Code, Slack...) return kAXErrorAPIDisabled (-25211) until
+            // asked to build their accessibility tree. Switch it on and give it a moment.
+            let manual = AXUIElementSetAttributeValue(appEl, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+            for _ in 0..<6 {
+                usleep(100_000)
+                let retry = lookupWindow(appEl, how + ", after AXManualAccessibility (\(manual.rawValue))")
+                result = retry
+                if retry.0 != nil { break }
+            }
+        }
+        return result
+    }
+
+    private static func lookupWindow(_ appEl: AXUIElement, _ how: String) -> (AXUIElement?, String) {
         var ref: CFTypeRef?
         let focusedErr = AXUIElementCopyAttributeValue(appEl, kAXFocusedWindowAttribute as CFString, &ref)
         if focusedErr == .success, let ref { return ((ref as! AXUIElement), how + ", focused window") }
