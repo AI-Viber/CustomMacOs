@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     func applicationDidFinishLaunching(_ notification: Notification) {
         buildMainMenu()
         applyPresence(settings.presence)
+        ActiveAppTracker.shared.start()
 
         HotkeyManager.shared.installHandler()
         HotkeyManager.shared.registerAll()
@@ -75,6 +76,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     private func startPermissionedFeatures() {
         KeyRemapper.shared.apply(settings.capsLockMode)
         DragSnapper.shared.setEnabled(settings.dragToSnap)
+        KeyLayout.refresh()
+        AppShortcutTrigger.shared.update()
     }
 
     private func checkPermission() {
@@ -86,6 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         } else {
             // Without permission the tap stops, so give the user their Caps Lock back.
             KeyRemapper.shared.shutdown()
+            AppShortcutTrigger.shared.stop()
         }
     }
 
@@ -126,6 +130,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
+        // Opening this menu doesn't bring CustomMacOS forward, so the frontmost app is still the target.
+        let target = ActiveAppTracker.shared.targetApp
+        let addTitle = target?.localizedName.map { "Add Shortcut to “\($0)” Menu Item…" } ?? "Add Shortcut to Menu Item…"
+        let add = NSMenuItem(title: addTitle, action: target == nil ? nil : #selector(addAppShortcut), keyEquivalent: "")
+        add.target = self
+        menu.addItem(add)
+        menu.addItem(.separator())
         for (i, category) in WindowAction.Category.allCases.enumerated() {
             if i > 0 { menu.addItem(.separator()) }
             for action in WindowAction.actions(in: category) {
@@ -178,6 +189,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         }
     }
 
+    @objc private func addAppShortcut() {
+        guard let app = ActiveAppTracker.shared.targetApp else { NSSound.beep(); return }
+        // Let the menu finish closing before reading the app's menus.
+        DispatchQueue.main.async { AppShortcutPickerController.shared.show(for: app) }
+    }
+
     @objc private func grantAccess() {
         Permissions.prompt()
         Permissions.openAccessibilitySettings()
@@ -214,6 +231,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         appMenu.addItem(.separator())
         let prefs = appMenu.addItem(withTitle: "Settings…", action: #selector(openSettingsAction), keyEquivalent: ",")
         prefs.target = self
+        let addShortcut = appMenu.addItem(withTitle: "Add Shortcut to Menu Item…", action: #selector(addAppShortcut), keyEquivalent: "")
+        addShortcut.target = self
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Hide CustomMacOS", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         appMenu.addItem(withTitle: "Quit CustomMacOS", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")

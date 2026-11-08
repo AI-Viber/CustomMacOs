@@ -13,8 +13,10 @@ struct SettingsView: View {
                 .tabItem { Label("Keyboard", systemImage: "keyboard") }
             MenuBarTab(settings: settings)
                 .tabItem { Label("Menu Bar", systemImage: "menubar.rectangle") }
+            AppShortcutsTab()
+                .tabItem { Label("App Shortcuts", systemImage: "command") }
         }
-        .frame(width: 540, height: 620)
+        .frame(width: 600, height: 620)
     }
 }
 
@@ -199,6 +201,85 @@ private struct MenuBarTab: View {
                         Text("After 10 seconds").tag(10.0)
                         Text("After 30 seconds").tag(30.0)
                         Text("Never").tag(0.0)
+                    }
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+private struct AppShortcutsTab: View {
+    @ObservedObject var store = AppShortcutStore.shared
+    @ObservedObject var settings = AppSettings.shared
+
+    private struct AppGroup: Identifiable {
+        let id: String  // app name
+        let items: [AppMenuShortcut]
+    }
+
+    private var groups: [AppGroup] {
+        let grouped = Dictionary(grouping: store.items, by: { $0.appName })
+        return grouped.keys
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+            .map { name in
+                AppGroup(id: name, items: (grouped[name] ?? []).sorted { $0.pathDisplay < $1.pathDisplay })
+            }
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Give any menu item in any app a keyboard shortcut. With the app in front, choose “Add Shortcut to Menu Item…” from the CustomMacOS menu. CustomMacOS checks the shortcut isn't already used in that app, by CustomMacOS or by macOS first.")
+                        .font(.callout)
+                    if let app = ActiveAppTracker.shared.targetApp, let name = app.localizedName {
+                        Button("Add Shortcut to a \(name) Menu Item…") {
+                            AppShortcutPickerController.shared.show(for: app)
+                        }
+                    }
+                }
+                .padding(.vertical, 2)
+                Toggle("Also save to macOS App Shortcuts", isOn: $store.saveToMacOS)
+            } footer: {
+                Text("Saved to macOS: the app handles the shortcut itself once it's reopened, even without CustomMacOS, and it appears in System Settings → Keyboard → Keyboard Shortcuts → App Shortcuts. Until then, and for apps macOS won't let CustomMacOS save to, CustomMacOS presses the menu item for you.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            if !settings.accessibilityGranted {
+                Section {
+                    Label("App shortcuts need Accessibility access.", systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                }
+            }
+
+            if store.items.isEmpty {
+                Section {
+                    Text("No app shortcuts yet.").foregroundStyle(.secondary)
+                }
+            }
+
+            ForEach(groups) { group in
+                Section(group.id) {
+                    ForEach(group.items) { item in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.pathDisplay)
+                                Text(item.savedToMacOS ? "Saved to macOS · CustomMacOS covers it until the app is reopened"
+                                                       : "Handled by CustomMacOS")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text(item.shortcut.displayString)
+                                .font(.callout.monospaced())
+                            Button {
+                                store.remove(item)
+                            } label: {
+                                Image(systemName: "trash")
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Remove this shortcut")
+                        }
                     }
                 }
             }

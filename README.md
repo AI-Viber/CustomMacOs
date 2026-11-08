@@ -68,6 +68,29 @@ Settings → Menu Bar (on by default). A chevron (‹ ›) and a thin divider li
 
 The apps behind hidden icons keep running. Right-click the chevron for a small menu. If the divider is ever dragged to the right of the chevron, hiding is refused so the chevron can't push itself off-screen; drag the divider back to its left.
 
+## App shortcuts: add a shortcut to any app's menu item
+
+Like System Settings → Keyboard → Keyboard Shortcuts → App Shortcuts, but from the CustomMacOS menu and with clash checking.
+
+1. With any app in front, choose **Add Shortcut to “App” Menu Item…** from the CustomMacOS menu. (Opening a menu-bar menu doesn't switch away from the app.)
+2. Search for and select the menu item. Its current shortcut, if any, is shown on the right.
+3. Record the new shortcut. Before you save, CustomMacOS warns if it's already used by:
+   - another item anywhere in that app's menus,
+   - another app shortcut CustomMacOS assigned in that app,
+   - an App Shortcut set for All Applications in System Settings,
+   - one of CustomMacOS's own shortcuts (window actions, menu bar), or
+   - a macOS system shortcut (Spotlight, screenshots, Mission Control and so on).
+4. Save, or **Save Anyway** to override.
+
+The shortcut is applied two ways:
+
+- **CustomMacOS** watches for it and presses the menu item when that app is in front. Works immediately, and also in apps that ignore App Shortcuts.
+- **macOS App Shortcuts** (the `NSUserKeyEquivalents` setting System Settings uses). The app picks it up when it's next opened, then handles it itself, even without CustomMacOS; CustomMacOS stands aside so it never fires twice. After saving you're offered **Reopen “App” Now**, which quits the app normally (it can still ask to save documents) and opens it again.
+
+Sandboxed apps (most App Store apps) keep their settings where only System Settings can write, so for those CustomMacOS handles the shortcut itself; to make it permanent add the same shortcut in System Settings. All shortcuts are listed in **Settings → App Shortcuts**, where they can be removed.
+
+Only apps with a standard macOS menu bar are supported. Shortcuts are tied to the menu item's exact title (and its menu path), so items whose titles change, such as “Undo Typing”, only match under the title they had when assigned.
+
 ## Limits compared with Karabiner-Elements
 
 Karabiner installs a low-level virtual keyboard driver. CustomMacOS uses only standard user-level APIs, so: remaps don't apply in secure input fields (password boxes, some terminals with Secure Keyboard Entry), and there are no per-device rules.
@@ -84,6 +107,10 @@ Sources/
   HotkeyManager.swift   global shortcuts (Carbon hot keys)
   DragSnapper.swift     drag-to-edge snapping + preview overlay
   KeyRemapper.swift     Caps Lock → Hyper/Escape, Shift+Caps → Caps Lock
+  MenuReader.swift      reads another app's menus and shortcuts (Accessibility API); key layout helpers
+  AppShortcutStore.swift      app shortcut list, macOS App Shortcuts, clash checking, system shortcuts
+  AppShortcutTrigger.swift    presses menu items for app shortcuts; tracks the frontmost app
+  AppShortcutPicker.swift     the "Add Shortcut to Menu Item…" window
   MenuBarHider.swift    hide/show section for menu bar icons (macOS 26 and earlier)
   NativeOverflowToggle.swift  presses macOS 27's built-in menu bar arrow
   SettingsView.swift    SwiftUI settings + shortcut recorder
