@@ -4,14 +4,20 @@ A small native macOS menu-bar/Dock app combining Rectangle-style window manageme
 
 ## Build and install
 
-You need Apple's command-line tools (`xcode-select --install`, or a full Xcode install).
+You need Xcode (or Apple's command-line tools: `xcode-select --install`).
+
+**In Xcode:** open `CustomMacOS.xcodeproj` and choose **Product → Build (⌘B)**. This compiles the app, installs it to /Applications and launches it. Compiler errors appear in Xcode's Issue navigator as usual; **Product → Clean Build Folder** clears the build output. (The project runs `build.sh`, so there's nothing to configure.)
+
+**In Finder:** double-click **Build and Install.command**. Double-clicking it inside Xcode only opens it as text.
+
+**In Terminal:**
 
 ```bash
 cd CustomMacOS
 ./build.sh --install     # builds, copies to /Applications, launches
 ```
 
-`./build.sh` alone builds `build/CustomMacOS.app` without installing.
+`./build.sh` alone builds `build/CustomMacOS.app` without installing. Every build also writes its output to `build.log`.
 
 ## First launch
 
@@ -116,4 +122,5 @@ Sources/
   SettingsView.swift    SwiftUI settings + shortcut recorder
 Tools/MakeIcon.swift    draws the app icon during the build
 build.sh                compile, bundle, sign, optional install
+CustomMacOS.xcodeproj   Xcode project: ⌘B runs build.sh --install
 ```

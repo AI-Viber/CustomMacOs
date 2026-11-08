@@ -1,4 +1,5 @@
 #!/bin/bash
+# Double-click in Finder (not Xcode) to build and install CustomMacOS.
+# In Xcode, open CustomMacOS.xcodeproj and use Product → Build (⌘B) instead.
 cd "$(dirname "$0")"
-./build.sh --install 2>&1 | tee build.log
-echo "EXIT=${PIPESTATUS[0]}" | tee -a build.log
+./build.sh --install

@@ -1,0 +1,136 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXFileReference section */
+		882D762CA4691DB93CFF28B3 /* Sources */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Sources; sourceTree = "<group>"; };
+		8A655C33A483380863387707 /* Tools */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Tools; sourceTree = "<group>"; };
+		43A3FB4F49A137D84AE84258 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		A564464749B9E354E006D673 /* build.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = build.sh; sourceTree = "<group>"; };
+		096C71D5552228F2A63C478E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		76EE915BBD3A5FC70A9F142D /* Build and Install.command */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "Build and Install.command"; sourceTree = "<group>"; };
+		D57611297ABB4CF9D506E974 /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		3DCF9C5694232FE1227ACF9D = {
+			isa = PBXGroup;
+			children = (
+				882D762CA4691DB93CFF28B3 /* Sources */,
+				8A655C33A483380863387707 /* Tools */,
+				096C71D5552228F2A63C478E /* Info.plist */,
+				A564464749B9E354E006D673 /* build.sh */,
+				76EE915BBD3A5FC70A9F142D /* Build and Install.command */,
+				43A3FB4F49A137D84AE84258 /* README.md */,
+				D57611297ABB4CF9D506E974 /* .gitignore */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXLegacyTarget section */
+		81493EEEC3706A6C24CF4E4C /* CustomMacOS */ = {
+			isa = PBXLegacyTarget;
+			buildArgumentsString = "build.sh --install --xcode-action=$(ACTION)";
+			buildConfigurationList = 1B19F2F298377666598B6935 /* Build configuration list for PBXLegacyTarget "CustomMacOS" */;
+			buildPhases = (
+			);
+			buildToolPath = /bin/bash;
+			buildWorkingDirectory = "$(PROJECT_DIR)";
+			dependencies = (
+			);
+			name = CustomMacOS;
+			passBuildSettingsInEnvironment = 0;
+			productName = CustomMacOS;
+		};
+/* End PBXLegacyTarget section */
+
+/* Begin PBXProject section */
+		BB925536A8E52F22835AFA7C /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					81493EEEC3706A6C24CF4E4C = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = 3611C6E8D5B6DD874B365787 /* Build configuration list for PBXProject "CustomMacOS" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 3DCF9C5694232FE1227ACF9D;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				81493EEEC3706A6C24CF4E4C /* CustomMacOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin XCBuildConfiguration section */
+		DAE3E38243071EA2C747A499 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		A67AC0A265FF9CBC4BCF28BC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		617CD4687CF8F04D090484FA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		310831BDD87C5C7DF7ED8A85 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		3611C6E8D5B6DD874B365787 /* Build configuration list for PBXProject "CustomMacOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DAE3E38243071EA2C747A499 /* Debug */,
+				A67AC0A265FF9CBC4BCF28BC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1B19F2F298377666598B6935 /* Build configuration list for PBXLegacyTarget "CustomMacOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				617CD4687CF8F04D090484FA /* Debug */,
+				310831BDD87C5C7DF7ED8A85 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = BB925536A8E52F22835AFA7C /* Project object */;
+}

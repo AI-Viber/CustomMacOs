@@ -8,13 +8,30 @@
 # The app is assembled in a temporary folder outside the project: if the project lives in
 # an iCloud-synced folder (Documents, Desktop), iCloud attaches extended attributes that
 # codesign rejects ("resource fork, Finder information, or similar detritus not allowed").
+#
+# In Xcode: open CustomMacOS.xcodeproj and choose Product → Build (⌘B). Xcode runs this
+# script with --install, and Product → Clean runs it with --xcode-action=clean.
 set -euo pipefail
 cd "$(dirname "$0")"
 PROJECT_DIR="$(pwd)"
 
+INSTALL=0
+for arg in "$@"; do
+  case "$arg" in
+    --install) INSTALL=1 ;;
+    --xcode-action=clean)
+      rm -rf build
+      echo "Cleaned."
+      exit 0 ;;
+  esac
+done
+
+# Keep a copy of the output in build.log (Xcode also shows it in the Report navigator).
+exec > >(tee build.log) 2>&1
+
 APP_NAME="CustomMacOS"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/CustomMacOS-build.XXXXXX")"
-trap 'rm -rf "$WORK"' EXIT
+trap 'rc=$?; rm -rf "$WORK"; echo "EXIT=$rc"' EXIT
 APP="$WORK/$APP_NAME.app"
 
 if ! xcrun --find swiftc >/dev/null 2>&1; then
@@ -55,7 +72,7 @@ mkdir -p build
 ditto --noextattr --norsrc "$APP" "build/$APP_NAME.app"
 echo "✓ Built $APP_NAME.app"
 
-if [[ "${1:-}" == "--install" ]]; then
+if [[ "$INSTALL" == 1 ]]; then
   osascript -e "quit app \"$APP_NAME\"" 2>/dev/null || true
   sleep 1
   rm -rf "/Applications/$APP_NAME.app"
