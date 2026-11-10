@@ -46,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 
         // Doesn't need Accessibility, so start it straight away.
         MenuBarHider.shared.setEnabled(settings.menuBarHiderEnabled)
+        SystemMonitorFeature.start()
 
         settings.accessibilityGranted = AXIsProcessTrusted()
         if !settings.accessibilityGranted { Permissions.prompt() }
@@ -137,6 +138,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         add.target = self
         menu.addItem(add)
         menu.addItem(.separator())
+        if MonitorSettings.shared.enabled {
+            let monitor = NSMenuItem(title: "System Monitor…", action: #selector(showSystemMonitor), keyEquivalent: "")
+            monitor.target = self
+            menu.addItem(monitor)
+            menu.addItem(.separator())
+        }
         for (i, category) in WindowAction.Category.allCases.enumerated() {
             if i > 0 { menu.addItem(.separator()) }
             for action in WindowAction.actions(in: category) {
@@ -195,6 +202,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         DispatchQueue.main.async { AppShortcutPickerController.shared.show(for: app) }
     }
 
+    @objc private func showSystemMonitor() {
+        // Let the status menu finish closing before the panel opens from the same icon.
+        DispatchQueue.main.async { [weak self] in
+            if !SystemMonitorFeature.showPanel(anchor: self?.statusItem?.button) {
+                self?.openSettings()
+            }
+        }
+    }
+
     @objc private func grantAccess() {
         Permissions.prompt()
         Permissions.openAccessibilitySettings()
@@ -233,6 +249,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         prefs.target = self
         let addShortcut = appMenu.addItem(withTitle: "Add Shortcut to Menu Item…", action: #selector(addAppShortcut), keyEquivalent: "")
         addShortcut.target = self
+        let monitor = appMenu.addItem(withTitle: "System Monitor…", action: #selector(showSystemMonitor), keyEquivalent: "")
+        monitor.target = self
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Hide CustomMacOS", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         appMenu.addItem(withTitle: "Quit CustomMacOS", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")

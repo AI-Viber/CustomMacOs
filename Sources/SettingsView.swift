@@ -15,6 +15,8 @@ struct SettingsView: View {
                 .tabItem { Label("Menu Bar", systemImage: "menubar.rectangle") }
             AppShortcutsTab()
                 .tabItem { Label("App Shortcuts", systemImage: "command") }
+            MonitorTab()
+                .tabItem { Label("Monitor", systemImage: "waveform.path.ecg") }
         }
         .frame(width: 600, height: 620)
     }

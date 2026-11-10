@@ -97,6 +97,18 @@ Sandboxed apps (most App Store apps) keep their settings where only System Setti
 
 Only apps with a standard macOS menu bar are supported. Shortcuts are tied to the menu item's exact title (and its menu path), so items whose titles change, such as “Undo Typing”, only match under the title they had when assigned.
 
+## System monitor
+
+A MenuMeters-style monitor, shared with the standalone MenuPulse app. Settings → Monitor (on by default).
+
+- **Menu bar icons**: pin up to four of CPU, GPU, Neural Engine, Memory, Disk and Network, or none. Each icon is a glyph plus a small live graph, coloured per metric. Settings → Monitor can drop the glyph for a narrower graph-only icon, or turn the colour off. ⌘-drag an icon to move it; macOS remembers the position.
+- **Detail panel**: click any monitor icon, or choose **System Monitor…** from the CustomMacOS menu. Each row expands for more, such as per-core CPU activity, the memory breakdown, and per-disk and per-interface rates. The pin on each row adds or removes its menu bar icon.
+- **Refresh** every 1, 2 or 5 seconds. Readings are taken on a background thread, and only while an icon or the panel is showing, so key remapping is never held up.
+
+The Neural Engine figure is estimated from its power draw, because macOS reports nothing else for it. It and the power readings come from Apple's undocumented IOReport library and show "n/a" on Intel Macs.
+
+The monitor code lives in `Sources/Monitor`, a copy of `Sources/MenuPulse/Monitor` from the MenuPulse project. To pull in a newer version, run `Tools/sync-monitor.sh` (it expects MenuPulse in the folder next to this one).
+
 ## Limits compared with Karabiner-Elements
 
 Karabiner installs a low-level virtual keyboard driver. CustomMacOS uses only standard user-level APIs, so: remaps don't apply in secure input fields (password boxes, some terminals with Secure Keyboard Entry), and there are no per-device rules.
@@ -120,7 +132,10 @@ Sources/
   MenuBarHider.swift    hide/show section for menu bar icons (macOS 26 and earlier)
   NativeOverflowToggle.swift  presses macOS 27's built-in menu bar arrow
   SettingsView.swift    SwiftUI settings + shortcut recorder
+  MonitorIntegration.swift    starts the system monitor; its menu item and Settings tab
+  Monitor/              system monitor, copied from the MenuPulse project
 Tools/MakeIcon.swift    draws the app icon during the build
+Tools/sync-monitor.sh   refreshes Sources/Monitor from ../MenuPulse
 build.sh                compile, bundle, sign, optional install
 CustomMacOS.xcodeproj   Xcode project: ⌘B runs build.sh --install
 ```

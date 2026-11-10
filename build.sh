@@ -42,11 +42,17 @@ fi
 echo "→ Compiling…"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
+# Every Swift file under Sources, including the Monitor subfolder.
+SOURCES=()
+while IFS= read -r file; do
+  SOURCES+=("$file")
+done < <(find Sources -name '*.swift' | sort)
+
 for ARCH in arm64 x86_64; do
   xcrun --sdk macosx swiftc -O -swift-version 5 \
     -target "$ARCH-apple-macos13.0" \
     -o "$WORK/$APP_NAME-$ARCH" \
-    Sources/*.swift
+    "${SOURCES[@]}"
 done
 lipo -create -output "$APP/Contents/MacOS/$APP_NAME" "$WORK/$APP_NAME-arm64" "$WORK/$APP_NAME-x86_64"
 
