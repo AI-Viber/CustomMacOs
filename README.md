@@ -139,3 +139,7 @@ Tools/sync-monitor.sh   refreshes Sources/Monitor from ../MenuPulse
 build.sh                compile, bundle, sign, optional install
 CustomMacOS.xcodeproj   Xcode project: ⌘B runs build.sh --install
 ```
+
+## Licence
+
+MIT. See [LICENSE](LICENSE).
