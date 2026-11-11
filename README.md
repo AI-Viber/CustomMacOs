@@ -2,7 +2,15 @@
 
 A small native macOS menu-bar/Dock app combining Rectangle-style window management with a few Karabiner-Elements-style key remaps. macOS 13 Ventura or later.
 
-## Build and install
+## Install
+
+1. Download `CustomMacOS-<version>.zip` from the [latest release](https://github.com/AI-Viber/CustomMacOs/releases/latest).
+2. Unzip it and drag **CustomMacOS** into your Applications folder.
+3. Open it and follow [First launch](#first-launch) below to grant Accessibility access.
+
+The app is signed and notarised, so it opens without a security warning. It needs macOS 13 (Ventura) or later and runs on Apple Silicon and Intel Macs. Because releases are signed with a fixed identity, updating to a newer release keeps the Accessibility permission.
+
+## Build from source
 
 You need Xcode (or Apple's command-line tools: `xcode-select --install`).
 
@@ -109,9 +117,18 @@ The Neural Engine figure is estimated from its power draw, because macOS reports
 
 The monitor code lives in `Sources/Monitor`, a copy of `Sources/MenuPulse/Monitor` from the MenuPulse project. To pull in a newer version, run `Tools/sync-monitor.sh` (it expects MenuPulse in the folder next to this one).
 
+## Windows keyboards: swap ⌥ Option and ⌘ Command
+
+On a Windows/PC keyboard, Alt sits where ⌘ Command is on a Mac keyboard. In **Settings → Keyboard → Swap ⌥ Option and ⌘ Command**, every connected keyboard is listed; turn the swap on for the ones that need it. Other keyboards (including the built-in one) are unaffected.
+
+- The choice is saved in this Mac's preferences only, so each Mac keeps its own list.
+- It's applied whenever that keyboard is connected while CustomMacOS is running, and removed when CustomMacOS quits.
+- It uses `hidutil` on that keyboard only (the same mechanism as System Settings → Keyboard → Modifier Keys), so it works everywhere, including password fields, and needs no Accessibility access.
+- If you've already swapped these keys in System Settings → Modifier Keys, set them back there, or the two swaps cancel out.
+
 ## Limits compared with Karabiner-Elements
 
-Karabiner installs a low-level virtual keyboard driver. CustomMacOS uses only standard user-level APIs, so: remaps don't apply in secure input fields (password boxes, some terminals with Secure Keyboard Entry), and there are no per-device rules.
+Karabiner installs a low-level virtual keyboard driver. CustomMacOS uses only standard user-level APIs, so the Caps Lock Hyper/Escape behaviour doesn't apply in secure input fields (password boxes, some terminals with Secure Keyboard Entry), and the only per-keyboard rule is the Option/Command swap.
 
 ## Project layout
 
@@ -137,8 +154,29 @@ Sources/
 Tools/MakeIcon.swift    draws the app icon during the build
 Tools/sync-monitor.sh   refreshes Sources/Monitor from ../MenuPulse
 build.sh                compile, bundle, sign, optional install
+release.sh              signed, notarised build for sharing (see Publishing a release)
 CustomMacOS.xcodeproj   Xcode project: ⌘B runs build.sh --install
 ```
+
+## Publishing a release
+
+`./release.sh` builds a universal app, signs it with your Developer ID, has Apple notarise it, and writes `dist/CustomMacOS-<version>.zip`. That zip opens on other people's Macs without a security warning.
+
+One-time setup, with a paid Apple Developer account:
+
+1. **Certificate**: in Xcode → Settings → Accounts, select your team, click **Manage Certificates**, then **+** → **Developer ID Application**.
+2. **App-specific password**: create one at [account.apple.com](https://account.apple.com) under Sign-In and Security.
+3. **Save the notary credentials** in your keychain. It asks for the app-specific password:
+
+   ```sh
+   xcrun notarytool store-credentials notary --apple-id YOU@EXAMPLE.COM --team-id YOURTEAMID
+   ```
+
+For each release:
+
+1. Raise `CFBundleShortVersionString` and `CFBundleVersion` in `Info.plist`, and commit.
+2. Run `./release.sh`.
+3. On GitHub, open **Releases → Draft a new release**, create a tag such as `v1.2`, attach the zip from `dist/`, and publish. With GitHub's `gh` tool installed, the command the script prints does the same.
 
 ## Licence
 

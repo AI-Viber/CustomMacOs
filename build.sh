@@ -2,6 +2,9 @@
 # Builds CustomMacOS.app with the Xcode command-line tools (no Xcode project needed).
 #   ./build.sh            build into ./build/CustomMacOS.app
 #   ./build.sh --install  build, copy to /Applications and launch
+#   ./build.sh --release  build for other people's Macs (used by release.sh): needs SIGN_ID set
+#                         to a "Developer ID Application" certificate, signs with the hardened
+#                         runtime, and leaves this project's folder path out of the app
 # Optional: SIGN_ID="Your Certificate Name" ./build.sh  (a stable signing identity means
 # macOS keeps the Accessibility permission across rebuilds; the default ad-hoc signature does not)
 #
@@ -16,9 +19,11 @@ cd "$(dirname "$0")"
 PROJECT_DIR="$(pwd)"
 
 INSTALL=0
+RELEASE=0
 for arg in "$@"; do
   case "$arg" in
     --install) INSTALL=1 ;;
+    --release) RELEASE=1 ;;
     --xcode-action=clean)
       rm -rf build
       echo "Cleaned."
@@ -57,8 +62,11 @@ done
 lipo -create -output "$APP/Contents/MacOS/$APP_NAME" "$WORK/$APP_NAME-arm64" "$WORK/$APP_NAME-x86_64"
 
 cp Info.plist "$APP/Contents/Info.plist"
-# Record where the project lives so the app can write its diagnostics logs here.
-/usr/libexec/PlistBuddy -c "Add :CMOSProjectDir string $PROJECT_DIR" "$APP/Contents/Info.plist"
+if [[ "$RELEASE" == 0 ]]; then
+  # Record where the project lives so the app can write its diagnostics logs here.
+  # Left out of release builds, which log to ~/Library/Logs/CustomMacOS instead.
+  /usr/libexec/PlistBuddy -c "Add :CMOSProjectDir string $PROJECT_DIR" "$APP/Contents/Info.plist"
+fi
 
 echo "→ Making icon…"
 if xcrun --sdk macosx swiftc -O -o "$WORK/makeicon" Tools/MakeIcon.swift 2>/dev/null; then
@@ -70,7 +78,16 @@ fi
 
 echo "→ Signing…"
 xattr -cr "$APP"
-codesign --force --sign "${SIGN_ID:--}" "$APP"
+if [[ "$RELEASE" == 1 ]]; then
+  if [[ -z "${SIGN_ID:-}" ]]; then
+    echo "--release needs SIGN_ID set to a \"Developer ID Application\" certificate. Use ./release.sh."
+    exit 1
+  fi
+  # Apple's notary service requires the hardened runtime and a secure timestamp.
+  codesign --force --options runtime --timestamp --sign "$SIGN_ID" "$APP"
+else
+  codesign --force --sign "${SIGN_ID:--}" "$APP"
+fi
 
 # Keep a copy in ./build for reference (not used for installing).
 rm -rf build

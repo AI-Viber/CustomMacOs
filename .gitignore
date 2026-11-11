@@ -1,5 +1,6 @@
 # Build output and local logs
 build/
+dist/
 *.log
 *-diagnostics.txt
 .DS_Store
