@@ -15,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         buildMainMenu()
         applyPresence(settings.presence)
         ActiveAppTracker.shared.start()
+        // Per-keyboard Option/Command swap; needs no Accessibility permission.
+        KeyboardMappings.shared.start()
 
         HotkeyManager.shared.installHandler()
         HotkeyManager.shared.registerAll()
@@ -65,6 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 
     func applicationWillTerminate(_ notification: Notification) {
         KeyRemapper.shared.shutdown()
+        KeyboardMappings.shared.shutdown()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

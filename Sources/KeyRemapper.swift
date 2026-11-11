@@ -47,21 +47,9 @@ final class KeyRemapper {
     // MARK: hidutil
 
     private func setHIDMapping(enabled: Bool) {
-        // 0x700000039 = Caps Lock, 0x70000006D = F18 (HID usage page 7)
-        let json = enabled
-            ? #"{"UserKeyMapping":[{"HIDKeyboardModifierMappingSrc":30064771129,"HIDKeyboardModifierMappingDst":30064771181}]}"#
-            : #"{"UserKeyMapping":[]}"#
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/hidutil")
-        p.arguments = ["property", "--set", json]
-        p.standardOutput = FileHandle.nullDevice
-        p.standardError = FileHandle.nullDevice
-        do {
-            try p.run()
-            p.waitUntilExit()
-        } catch {
-            NSLog("CustomMacOS: hidutil failed: \(error)")
-        }
+        // Caps Lock → F18 is applied by KeyboardMappings, together with any per-keyboard
+        // Option/Command swaps, so the two never overwrite each other.
+        KeyboardMappings.shared.setCapsToF18(enabled)
     }
 
     // MARK: Event tap

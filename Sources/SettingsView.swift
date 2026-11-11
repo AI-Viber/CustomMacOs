@@ -106,6 +106,7 @@ private struct WindowsTab: View {
 
 private struct KeyboardTab: View {
     @ObservedObject var settings: AppSettings
+    @ObservedObject var keyboards = KeyboardMappings.shared
 
     var body: some View {
         Form {
@@ -125,6 +126,37 @@ private struct KeyboardTab: View {
                     Label("Key remapping is paused until Accessibility access is granted.", systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.orange)
                 }
+            }
+
+            Section {
+                if keyboards.connected.isEmpty {
+                    Text("No keyboards found.").foregroundStyle(.secondary)
+                }
+                ForEach(keyboards.connected) { kb in
+                    Toggle(isOn: Binding(
+                        get: { keyboards.isSwapped(kb.id) },
+                        set: { keyboards.setSwap($0, id: kb.id, name: kb.name) })) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(kb.name)
+                            Text(kb.detail).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                ForEach(keyboards.rememberedNotConnected) { kb in
+                    Toggle(isOn: Binding(
+                        get: { true },
+                        set: { if !$0 { keyboards.setSwap(false, id: kb.id, name: kb.name) } })) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(kb.name)
+                            Text("Not connected · swap applies when it's plugged in").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            } header: {
+                Text("Swap ⌥ Option and ⌘ Command")
+            } footer: {
+                Text("For Windows/PC keyboards, where Alt sits where ⌘ Command is on a Mac keyboard. Turn it on for each keyboard that needs it; other keyboards are unaffected. These choices are saved on this Mac only, apply automatically whenever that keyboard is connected while CustomMacOS is running, and don't need Accessibility access. If you've already swapped these keys in System Settings → Keyboard → Keyboard Shortcuts → Modifier Keys, set them back there, or the two swaps cancel out.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
