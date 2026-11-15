@@ -153,9 +153,13 @@ enum BatteryIcon {
                 guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(width * scale),
                                                  pixelsHigh: Int(height * scale), bitsPerSample: 8,
                                                  samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-                                                 colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
-                      let ctx = NSGraphicsContext(bitmapImageRep: rep) else { drewOK = false; return }
+                                                 colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)
+                else { drewOK = false; return }
+                // Set the size in points before making the context, so drawing is in points
+                // (otherwise the context works in pixels and the battery fills only the
+                // bottom-left quarter: half-size and low).
                 rep.size = NSSize(width: width, height: height)
+                guard let ctx = NSGraphicsContext(bitmapImageRep: rep) else { drewOK = false; return }
                 // Resolve colours for this menu bar now (light or dark).
                 let ink = NSColor.labelColor.usingColorSpace(.sRGB) ?? .labelColor
                 let warn: NSColor? = s.lowPowerMode ? .systemYellow : (s.isLow ? .systemRed : nil)
