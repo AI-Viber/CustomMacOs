@@ -52,6 +52,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         BatteryStatus.shared.start()
         NotificationCenter.default.addObserver(self, selector: #selector(screensChanged),
                                                name: NSApplication.didChangeScreenParametersNotification, object: nil)
+        // Redraw the battery when switching between light and dark mode.
+        DistributedNotificationCenter.default().addObserver(self, selector: #selector(screensChanged),
+                                                            name: Notification.Name("AppleInterfaceThemeChangedNotification"),
+                                                            object: nil)
         Publishers.Merge4(settings.$menuBarIconStyle.map { _ in () },
                           settings.$batteryShowsPercentage.map { _ in () },
                           settings.$batteryIconWidth.removeDuplicates().map { _ in () },
@@ -195,29 +199,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 
     private func showStandardIcon(in item: NSStatusItem) {
         guard let button = item.button else { return }
-        BatteryIconView.remove(from: button)
-        item.length = NSStatusItem.variableLength
         button.imageScaling = .scaleProportionallyDown
         button.image = Self.standardIcon()
         button.setAccessibilityLabel("CustomMacOS")
     }
 
-    /// Draws the battery at the menu bar's full height. The button itself only centres icons of
-    /// the usual 22-point height (a taller one sits low), so the battery is drawn by a view that
-    /// fills the button and centres it exactly; the button underneath still opens the menu.
+    /// Shows the battery as the button's image, the same way the System Monitor icons are
+    /// drawn, so macOS lines it up with every other menu bar icon.
     private func showBattery(_ battery: BatterySnapshot, in item: NSStatusItem) {
         guard let button = item.button else { return }
-        // The height macOS gives a menu bar item's button (22 points), which is where every
-        // menu bar icon is drawn, even in the taller menu bar of Macs with a notch.
-        let barHeight = button.bounds.height > 0 ? button.bounds.height : NSStatusBar.system.thickness
-        let image = BatteryIcon.image(for: battery, showPercentage: settings.batteryShowsPercentage,
-                                      bodyWidth: CGFloat(settings.batteryIconWidth), barHeight: barHeight)
-        button.image = nil
-        button.title = ""
-        item.length = image.size.width + 8  // a little padding either side, like other icons
-        BatteryIconView.show(image, in: button)
+        button.imagePosition = .imageOnly
+        button.imageScaling = .scaleProportionallyDown
+        button.image = BatteryIcon.image(for: battery, showPercentage: settings.batteryShowsPercentage,
+                                         bodyWidth: CGFloat(settings.batteryIconWidth),
+                                         barHeight: button.bounds.height,
+                                         appearance: button.effectiveAppearance)
         button.setAccessibilityLabel(battery.accessibilityText)
-        DiagnosticsLog.append("battery", "bar height \(barHeight) (window \(button.window?.frame.height ?? -1), button \(button.bounds.height)), icon \(image.size.width)×\(image.size.height)")
     }
 
     /// The battery details at the top of the menu, like macOS's own battery menu.

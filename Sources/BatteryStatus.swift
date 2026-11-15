@@ -120,87 +120,107 @@ final class BatteryStatus: ObservableObject {
     }
 }
 
-/// Draws an upright battery for the menu bar, using the bar's full height and filling
-/// from the bottom, in the style of macOS's own battery icon.
+/// Draws an upright battery for the menu bar, filling from the bottom, in the style of
+/// macOS's own battery icon. Sized and drawn the same way as the System Monitor's icons, so
+/// macOS positions it in line with every other menu bar icon.
 enum BatteryIcon {
-    /// `bodyWidth` is the battery's width in points; `barHeight` the menu bar button's height.
-    static func image(for s: BatterySnapshot, showPercentage: Bool,
-                      bodyWidth: CGFloat = 30, barHeight: CGFloat? = nil) -> NSImage {
+    /// - Parameters:
+    ///   - bodyWidth: the battery's width in points.
+    ///   - barHeight: the menu bar button's height; the battery uses all of it but a 1pt margin.
+    ///   - appearance: the button's appearance, so the battery is light on a dark menu bar and
+    ///     dark on a light one.
+    static func image(for s: BatterySnapshot, showPercentage: Bool, bodyWidth: CGFloat = 30,
+                      barHeight: CGFloat? = nil, appearance: NSAppearance? = nil) -> NSImage {
         let font = NSFont.menuBarFont(ofSize: 0)
         let text = showPercentage ? "\(s.percent)%" : ""
         let textSize = text.isEmpty ? .zero : (text as NSString).size(withAttributes: [.font: font])
 
-        // Use nearly all of the height the menu bar gives an item, with a 1-point margin.
-        let height = max(18, barHeight ?? NSStatusBar.system.thickness)
-        let margin: CGFloat = 1
+        // Same rule as the System Monitor icons: menu bar buttons give 22–24pt of usable height
+        // (also on Macs with a notch); keep within that, less 1pt above and below.
+        let height = min(max(barHeight ?? NSStatusBar.system.thickness, 18), 24) - 2
         let bodyW = max(10, bodyWidth)
         let nubH: CGFloat = 2, nubW = max(5, bodyW * 0.4)
-        let bodyH = height - 2 * margin - nubH - 1
+        let bodyH = height - nubH - 1
         let gap: CGFloat = text.isEmpty ? 0 : 3
-        let width = ceil(textSize.width + gap + bodyW + 1)
+        let width = ceil(textSize.width + gap + bodyW)
 
         let image = NSImage(size: NSSize(width: width, height: height), flipped: false) { dest in
-            // Draw into a private bitmap first, so cutting the outline around the bolt can't
-            // punch through to the menu bar. Colours are resolved now, while the menu bar's
-            // light or dark appearance is current, so the icon follows it.
-            let scale: CGFloat = 2
-            guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(width * scale),
-                                             pixelsHigh: Int(height * scale), bitsPerSample: 8,
-                                             samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-                                             colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
-                  let ctx = NSGraphicsContext(bitmapImageRep: rep) else { return false }
-            rep.size = NSSize(width: width, height: height)
-            NSGraphicsContext.saveGraphicsState()
-            NSGraphicsContext.current = ctx
-            defer {
+            var drewOK = true
+            let draw = {
+                // Draw into a private bitmap first, so cutting the outline around the bolt
+                // can't punch through to the menu bar.
+                let scale: CGFloat = 2
+                guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(width * scale),
+                                                 pixelsHigh: Int(height * scale), bitsPerSample: 8,
+                                                 samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                                 colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
+                      let ctx = NSGraphicsContext(bitmapImageRep: rep) else { drewOK = false; return }
+                rep.size = NSSize(width: width, height: height)
+                // Resolve colours for this menu bar now (light or dark).
+                let ink = NSColor.labelColor.usingColorSpace(.sRGB) ?? .labelColor
+                let warn: NSColor? = s.lowPowerMode ? .systemYellow : (s.isLow ? .systemRed : nil)
+                let fillColour = warn.flatMap { $0.usingColorSpace(.sRGB) } ?? ink
+
+                NSGraphicsContext.saveGraphicsState()
+                NSGraphicsContext.current = ctx
+                drawBattery(s, text: text, textSize: textSize, font: font, gap: gap,
+                            bodyW: bodyW, bodyH: bodyH, nubW: nubW, nubH: nubH,
+                            ink: ink, fillColour: fillColour)
                 NSGraphicsContext.restoreGraphicsState()
                 rep.draw(in: dest)
             }
-
-            let ink = NSColor.labelColor
-            let fillColour: NSColor = s.lowPowerMode ? .systemYellow : (s.isLow ? .systemRed : ink)
-
-            if !text.isEmpty {
-                let y = (height - textSize.height) / 2
-                (text as NSString).draw(at: NSPoint(x: 0, y: y), withAttributes: [.font: font, .foregroundColor: ink])
+            if let appearance {
+                appearance.performAsCurrentDrawingAppearance(draw)
+            } else {
+                draw()
             }
-
-            let x0 = textSize.width + gap + 0.5
-            let body = NSRect(x: x0, y: margin, width: bodyW, height: bodyH)
-            // A clear outline, plus a faint tint inside so the empty part still reads as battery.
-            let line: CGFloat = 1.5
-            let outline = NSBezierPath(roundedRect: body.insetBy(dx: line / 2, dy: line / 2), xRadius: 4, yRadius: 4)
-            ink.withAlphaComponent(0.15).setFill()
-            outline.fill()
-            outline.lineWidth = line
-            ink.withAlphaComponent(0.75).setStroke()
-            outline.stroke()
-
-            // Terminal on top.
-            let nub = NSRect(x: body.midX - nubW / 2, y: body.maxY + 1, width: nubW, height: nubH)
-            ink.withAlphaComponent(0.75).setFill()
-            NSBezierPath(roundedRect: nub, xRadius: 1, yRadius: 1).fill()
-
-            // Charge rises from the bottom.
-            let inner = body.insetBy(dx: line + 1.5, dy: line + 1.5)
-            let level = CGFloat(s.percent) / 100
-            if level > 0 {
-                let fill = NSRect(x: inner.minX, y: inner.minY,
-                                  width: inner.width, height: max(1.5, inner.height * level))
-                fillColour.setFill()
-                NSBezierPath(roundedRect: fill, xRadius: 2, yRadius: 2).fill()
-            }
-
-            // Charging bolt, or plug when on power but not charging.
-            if s.onACPower {
-                drawGlyph(s.isCharging ? "bolt.fill" : "powerplug.fill", centredIn: body, ink: ink,
-                          pointSize: min(bodyH * 0.6, bodyW * 0.7))
-            }
-            return true
+            return drewOK
         }
         image.isTemplate = false
         image.accessibilityDescription = s.accessibilityText
         return image
+    }
+
+    private static func drawBattery(_ s: BatterySnapshot, text: String, textSize: NSSize, font: NSFont,
+                                    gap: CGFloat, bodyW: CGFloat, bodyH: CGFloat, nubW: CGFloat, nubH: CGFloat,
+                                    ink: NSColor, fillColour: NSColor) {
+        let totalH = bodyH + 1 + nubH
+        if !text.isEmpty {
+            let y = (totalH - textSize.height) / 2
+            (text as NSString).draw(at: NSPoint(x: 0, y: y), withAttributes: [.font: font, .foregroundColor: ink])
+        }
+
+        let x0 = text.isEmpty ? 0 : textSize.width + gap
+        let body = NSRect(x: x0, y: 0, width: bodyW, height: bodyH)
+        // A clear outline, plus a faint tint inside so the empty part still reads as battery.
+        let line: CGFloat = 1.5
+        let outline = NSBezierPath(roundedRect: body.insetBy(dx: line / 2, dy: line / 2), xRadius: 4, yRadius: 4)
+        ink.withAlphaComponent(0.15).setFill()
+        outline.fill()
+        outline.lineWidth = line
+        ink.withAlphaComponent(0.75).setStroke()
+        outline.stroke()
+
+        // Terminal on top.
+        let nub = NSRect(x: body.midX - nubW / 2, y: body.maxY + 1, width: nubW, height: nubH)
+        ink.withAlphaComponent(0.75).setFill()
+        NSBezierPath(roundedRect: nub, xRadius: 1, yRadius: 1).fill()
+
+        // Charge rises from the bottom.
+        let inner = body.insetBy(dx: line + 1.5, dy: line + 1.5)
+        let level = CGFloat(s.percent) / 100
+        if level > 0 {
+            let fill = NSRect(x: inner.minX, y: inner.minY,
+                              width: inner.width, height: max(1.5, inner.height * level))
+            fillColour.setFill()
+            NSBezierPath(roundedRect: fill, xRadius: 2, yRadius: 2).fill()
+        }
+
+        // Charging bolt, or plug when on power but not charging.
+        if s.onACPower {
+            drawGlyph(s.isCharging ? "bolt.fill" : "powerplug.fill", centredIn: body, ink: ink,
+                      pointSize: min(bodyH * 0.6, bodyW * 0.7))
+        }
     }
 
     /// Draws an SF Symbol with a knocked-out outline, so it stays readable over the fill.
@@ -221,40 +241,4 @@ enum BatteryIcon {
         // ...then draw the glyph itself.
         symbol.draw(in: r, from: .zero, operation: .sourceOver, fraction: 1)
     }
-}
-
-/// Shows the battery image centred in a menu bar button. Clicks pass through to the button,
-/// so it still opens the menu and highlights as usual.
-final class BatteryIconView: NSView {
-    var image: NSImage? { didSet { needsDisplay = true } }
-
-    static func show(_ image: NSImage, in button: NSStatusBarButton) {
-        let view = button.subviews.compactMap { $0 as? BatteryIconView }.first ?? {
-            let v = BatteryIconView(frame: button.bounds)
-            v.autoresizingMask = [.width, .height]
-            button.addSubview(v)
-            return v
-        }()
-        // Draw within the button, exactly where macOS draws every other menu bar icon. (On Macs
-        // with a notch the item's window is 38pt tall with the 22pt button in its middle, but
-        // macOS 27 doesn't show anything drawn outside the button in line with other icons.)
-        view.frame = button.bounds
-        view.image = image
-    }
-
-    static func remove(from button: NSStatusBarButton) {
-        button.subviews.filter { $0 is BatteryIconView }.forEach { $0.removeFromSuperview() }
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        guard let image else { return }
-        let size = image.size
-        let rect = NSRect(x: ((bounds.width - size.width) / 2).rounded(),
-                          y: ((bounds.height - size.height) / 2).rounded(),
-                          width: size.width, height: size.height)
-        image.draw(in: rect)
-    }
-
-    // Let clicks reach the status bar button underneath.
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
