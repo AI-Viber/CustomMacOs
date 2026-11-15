@@ -231,12 +231,23 @@ final class BatteryIconView: NSView {
     static func show(_ image: NSImage, in button: NSStatusBarButton) {
         let view = button.subviews.compactMap { $0 as? BatteryIconView }.first ?? {
             let v = BatteryIconView(frame: button.bounds)
-            v.autoresizingMask = [.width, .height]
+            v.autoresizingMask = [.width]
             button.addSubview(v)
             return v
         }()
-        view.frame = button.bounds
+        // On Macs with a notch the menu bar is 38pt tall but the button only 22pt, sitting at the
+        // bottom of it; macOS draws ordinary icons raised to the bar's centre. So cover the whole
+        // bar height, not just the button, and centre the battery in that.
+        var frame = button.bounds
+        if let content = button.window?.contentView {
+            let bar = button.convert(content.bounds, from: content)
+            frame.origin.y = bar.minY
+            frame.size.height = bar.height
+        }
+        if #available(macOS 14.0, *) { button.clipsToBounds = false }
+        view.frame = frame
         view.image = image
+        DiagnosticsLog.append("battery", "button frame in bar \(button.convert(button.bounds, to: nil)), view frame \(frame)")
     }
 
     static func remove(from button: NSStatusBarButton) {
