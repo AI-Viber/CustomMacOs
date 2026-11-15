@@ -122,7 +122,7 @@ The monitor code lives in `Sources/Monitor`, a copy of `Sources/MenuPulse/Monito
 **Settings → General → Menu bar icon** chooses what CustomMacOS shows in the menu bar:
 
 - **CustomMacOS**: the normal icon.
-- **Battery**: a battery level indicator in place of it, drawn like macOS's own: it fills to the current level, shows a bolt while charging or a plug when on power but not charging, turns red at 10% or below and yellow in Low Power Mode. **Show battery percentage** adds the number beside it.
+- **Battery**: an upright battery in place of it, using the full height of the menu bar: it fills from the bottom to the current level, shows a bolt while charging or a plug when on power but not charging, turns red at 10% or below and yellow in Low Power Mode. **Show battery percentage** adds the number beside it.
 - **Both**: the battery as a separate icon next to the CustomMacOS one.
 
 Clicking the battery opens the CustomMacOS menu with a battery section at the top: level, charging state, time remaining or time until full, Low Power Mode, and **Battery Settings…**. macOS doesn't let other apps read its "Using Significant Energy" list or switch Low Power Mode, so those stay in macOS's own battery settings.

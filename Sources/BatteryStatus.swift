@@ -120,16 +120,22 @@ final class BatteryStatus: ObservableObject {
     }
 }
 
-/// Draws a battery icon for the menu bar in the style of macOS's own.
+/// Draws an upright battery for the menu bar, using the bar's full height and filling
+/// from the bottom, in the style of macOS's own battery icon.
 enum BatteryIcon {
     static func image(for s: BatterySnapshot, showPercentage: Bool) -> NSImage {
         let font = NSFont.menuBarFont(ofSize: 0)
         let text = showPercentage ? "\(s.percent)%" : ""
         let textSize = text.isEmpty ? .zero : (text as NSString).size(withAttributes: [.font: font])
-        let bodyW: CGFloat = 23, bodyH: CGFloat = 11.5, nubW: CGFloat = 1.6
-        let gap: CGFloat = text.isEmpty ? 0 : 4
-        let width = ceil(textSize.width + gap + bodyW + nubW + 1)
-        let height: CGFloat = 22
+
+        // Fill the menu bar's height (taller on Macs with a notch), less a small margin.
+        let height = max(22, NSStatusBar.system.thickness)
+        let margin: CGFloat = 1.5
+        let nubH: CGFloat = 1.6, nubW: CGFloat = 5
+        let bodyW: CGFloat = 11
+        let bodyH = height - 2 * margin - nubH - 0.6
+        let gap: CGFloat = text.isEmpty ? 0 : 3
+        let width = ceil(textSize.width + gap + bodyW + 1)
 
         let image = NSImage(size: NSSize(width: width, height: height), flipped: false) { dest in
             // Draw into a private bitmap first, so cutting the outline around the bolt can't
@@ -157,28 +163,29 @@ enum BatteryIcon {
                 (text as NSString).draw(at: NSPoint(x: 0, y: y), withAttributes: [.font: font, .foregroundColor: ink])
             }
 
-            let x0 = textSize.width + gap
-            let body = NSRect(x: x0 + 0.5, y: (height - bodyH) / 2, width: bodyW, height: bodyH)
-            let bodyPath = NSBezierPath(roundedRect: body, xRadius: 3.2, yRadius: 3.2)
+            let x0 = textSize.width + gap + 0.5
+            let body = NSRect(x: x0, y: margin, width: bodyW, height: bodyH)
             ink.withAlphaComponent(0.35).setFill()
-            bodyPath.fill()
+            NSBezierPath(roundedRect: body, xRadius: 2.8, yRadius: 2.8).fill()
 
-            let nub = NSRect(x: body.maxX + 0.6, y: body.midY - 2.2, width: nubW, height: 4.4)
+            // Terminal on top.
+            let nub = NSRect(x: body.midX - nubW / 2, y: body.maxY + 0.6, width: nubW, height: nubH)
             ink.withAlphaComponent(0.4).setFill()
             NSBezierPath(roundedRect: nub, xRadius: 0.8, yRadius: 0.8).fill()
 
+            // Charge rises from the bottom.
             let inner = body.insetBy(dx: 1.6, dy: 1.6)
             let level = CGFloat(s.percent) / 100
             if level > 0 {
-                let fill = NSRect(x: inner.minX, y: inner.minY, width: max(1.5, inner.width * level), height: inner.height)
+                let fill = NSRect(x: inner.minX, y: inner.minY,
+                                  width: inner.width, height: max(1.5, inner.height * level))
                 fillColour.setFill()
-                NSBezierPath(roundedRect: fill, xRadius: 1.8, yRadius: 1.8).fill()
+                NSBezierPath(roundedRect: fill, xRadius: 1.6, yRadius: 1.6).fill()
             }
 
             // Charging bolt, or plug when on power but not charging.
             if s.onACPower {
-                let name = s.isCharging ? "bolt.fill" : "powerplug.fill"
-                drawGlyph(name, centredIn: body, ink: ink)
+                drawGlyph(s.isCharging ? "bolt.fill" : "powerplug.fill", centredIn: body, ink: ink)
             }
             return true
         }
@@ -189,7 +196,7 @@ enum BatteryIcon {
 
     /// Draws an SF Symbol with a knocked-out outline, so it stays readable over the fill.
     private static func drawGlyph(_ name: String, centredIn rect: NSRect, ink: NSColor) {
-        let config = NSImage.SymbolConfiguration(pointSize: 9, weight: .heavy)
+        let config = NSImage.SymbolConfiguration(pointSize: 8, weight: .heavy)
             .applying(NSImage.SymbolConfiguration(paletteColors: [ink]))
         guard let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
             .withSymbolConfiguration(config) else { return }
