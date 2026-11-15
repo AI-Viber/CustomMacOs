@@ -130,11 +130,11 @@ enum BatteryIcon {
         let text = showPercentage ? "\(s.percent)%" : ""
         let textSize = text.isEmpty ? .zero : (text as NSString).size(withAttributes: [.font: font])
 
-        // Fill the menu bar's full height (much taller on Macs with a notch), less a small margin.
+        // Use nearly all of the height the menu bar gives an item, with a 1-point margin.
         let height = max(18, barHeight ?? NSStatusBar.system.thickness)
-        let margin = max(2, (height * 0.08).rounded())
+        let margin: CGFloat = 1
         let bodyW = max(10, bodyWidth)
-        let nubH = max(2, (height * 0.08).rounded()), nubW = max(5, bodyW * 0.4)
+        let nubH: CGFloat = 2, nubW = max(5, bodyW * 0.4)
         let bodyH = height - 2 * margin - nubH - 1
         let gap: CGFloat = text.isEmpty ? 0 : 3
         let width = ceil(textSize.width + gap + bodyW + 1)
@@ -231,23 +231,15 @@ final class BatteryIconView: NSView {
     static func show(_ image: NSImage, in button: NSStatusBarButton) {
         let view = button.subviews.compactMap { $0 as? BatteryIconView }.first ?? {
             let v = BatteryIconView(frame: button.bounds)
-            v.autoresizingMask = [.width]
+            v.autoresizingMask = [.width, .height]
             button.addSubview(v)
             return v
         }()
-        // On Macs with a notch the menu bar is 38pt tall but the button only 22pt, sitting at the
-        // bottom of it; macOS draws ordinary icons raised to the bar's centre. So cover the whole
-        // bar height, not just the button, and centre the battery in that.
-        var frame = button.bounds
-        if let content = button.window?.contentView {
-            let bar = button.convert(content.bounds, from: content)
-            frame.origin.y = bar.minY
-            frame.size.height = bar.height
-        }
-        if #available(macOS 14.0, *) { button.clipsToBounds = false }
-        view.frame = frame
+        // Draw within the button, exactly where macOS draws every other menu bar icon. (On Macs
+        // with a notch the item's window is 38pt tall with the 22pt button in its middle, but
+        // macOS 27 doesn't show anything drawn outside the button in line with other icons.)
+        view.frame = button.bounds
         view.image = image
-        DiagnosticsLog.append("battery", "button frame in bar \(button.convert(button.bounds, to: nil)), view frame \(frame)")
     }
 
     static func remove(from button: NSStatusBarButton) {

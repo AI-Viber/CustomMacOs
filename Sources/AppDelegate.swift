@@ -207,9 +207,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     /// fills the button and centres it exactly; the button underneath still opens the menu.
     private func showBattery(_ battery: BatterySnapshot, in item: NSStatusItem) {
         guard let button = item.button else { return }
-        // The status item's window is as tall as the menu bar it's in: 38 points on this
-        // MacBook Air with a notch, against the 22 that NSStatusBar.thickness reports.
-        let barHeight = max(button.window?.frame.height ?? 0, button.bounds.height, NSStatusBar.system.thickness)
+        // The height macOS gives a menu bar item's button (22 points), which is where every
+        // menu bar icon is drawn, even in the taller menu bar of Macs with a notch.
+        let barHeight = button.bounds.height > 0 ? button.bounds.height : NSStatusBar.system.thickness
         let image = BatteryIcon.image(for: battery, showPercentage: settings.batteryShowsPercentage,
                                       bodyWidth: CGFloat(settings.batteryIconWidth), barHeight: barHeight)
         button.image = nil
