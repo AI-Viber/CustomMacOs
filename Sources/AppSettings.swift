@@ -14,6 +14,19 @@ enum AppPresence: String, CaseIterable, Identifiable {
     }
 }
 
+/// What the CustomMacOS menu bar icon shows.
+enum MenuBarIconStyle: String, CaseIterable, Identifiable {
+    case standard, battery, both
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .standard: return "CustomMacOS"
+        case .battery: return "Battery"
+        case .both: return "Both"
+        }
+    }
+}
+
 enum CapsLockMode: String, CaseIterable, Identifiable {
     case hyperEscape, hyper, escape, off
     var id: String { rawValue }
@@ -33,6 +46,12 @@ final class AppSettings: ObservableObject {
 
     @Published var presence: AppPresence {
         didSet { d.set(presence.rawValue, forKey: "presence") }
+    }
+    @Published var menuBarIconStyle: MenuBarIconStyle {
+        didSet { d.set(menuBarIconStyle.rawValue, forKey: "menuBarIconStyle") }
+    }
+    @Published var batteryShowsPercentage: Bool {
+        didSet { d.set(batteryShowsPercentage, forKey: "batteryShowsPercentage") }
     }
     @Published var capsLockMode: CapsLockMode {
         didSet { d.set(capsLockMode.rawValue, forKey: "capsLockMode") }
@@ -68,6 +87,8 @@ final class AppSettings: ObservableObject {
     private init() {
         let d = UserDefaults.standard
         presence = AppPresence(rawValue: d.string(forKey: "presence") ?? "") ?? .menuBar
+        menuBarIconStyle = MenuBarIconStyle(rawValue: d.string(forKey: "menuBarIconStyle") ?? "") ?? .standard
+        batteryShowsPercentage = d.object(forKey: "batteryShowsPercentage") as? Bool ?? false
         capsLockMode = CapsLockMode(rawValue: d.string(forKey: "capsLockMode") ?? "") ?? .hyperEscape
         shiftCapsTogglesCapsLock = d.object(forKey: "shiftCapsTogglesCapsLock") as? Bool ?? true
         dragToSnap = d.object(forKey: "dragToSnap") as? Bool ?? true

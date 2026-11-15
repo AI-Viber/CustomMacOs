@@ -5,6 +5,8 @@ import Combine
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDelegate {
     private let settings = AppSettings.shared
     private var statusItem: NSStatusItem?
+    /// The separate battery icon (Menu bar icon: Both, or Battery while CustomMacOS is in the Dock only).
+    private var batteryItem: NSStatusItem?
     private var settingsWindow: NSWindow?
     private var cancellables = Set<AnyCancellable>()
     private var permissionTimer: Timer?
@@ -45,6 +47,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         settings.$menuBarShortcut.dropFirst()
             .sink { _ in DispatchQueue.main.async { HotkeyManager.shared.registerAll() } }
             .store(in: &cancellables)
+
+        // Battery icon: redraw when the battery or the icon settings change.
+        BatteryStatus.shared.start()
+        Publishers.Merge3(settings.$menuBarIconStyle.map { _ in () },
+                          settings.$batteryShowsPercentage.map { _ in () },
+                          BatteryStatus.shared.$snapshot.map { _ in () })
+            .dropFirst(3)
+            .sink { [weak self] in DispatchQueue.main.async { self?.updateMenuBarIcons() } }
+            .store(in: &cancellables)
+        updateMenuBarIcons()
 
         // Doesn't need Accessibility, so start it straight away.
         MenuBarHider.shared.setEnabled(settings.menuBarHiderEnabled)
@@ -104,6 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         let wantsMenuBar = p != .dock
         NSApp.setActivationPolicy(wantsDock ? .regular : .accessory)
         if wantsMenuBar { installStatusItem() } else { removeStatusItem() }
+        updateMenuBarIcons()
         // Switching activation policy can hide our window; bring it back.
         if let w = settingsWindow, w.isVisible {
             DispatchQueue.main.async {
@@ -116,9 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     private func installStatusItem() {
         guard statusItem == nil else { return }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        let image = NSImage(systemSymbolName: "rectangle.split.2x1", accessibilityDescription: "CustomMacOS")
-        image?.isTemplate = true
-        item.button?.image = image
+        item.button?.image = Self.standardIcon()
         let menu = NSMenu()
         menu.delegate = self
         item.menu = menu
@@ -130,10 +141,75 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         statusItem = nil
     }
 
+    private static func standardIcon() -> NSImage? {
+        let image = NSImage(systemSymbolName: "rectangle.split.2x1", accessibilityDescription: "CustomMacOS")
+        image?.isTemplate = true
+        return image
+    }
+
+    /// Shows the battery in place of, or next to, the CustomMacOS icon, per Settings → General.
+    private func updateMenuBarIcons() {
+        let style = settings.menuBarIconStyle
+        let battery = BatteryStatus.shared.snapshot  // nil on Macs without a battery
+        let showPercent = settings.batteryShowsPercentage
+
+        if let button = statusItem?.button {
+            if style == .battery, let battery {
+                button.image = BatteryIcon.image(for: battery, showPercentage: showPercent)
+                button.setAccessibilityLabel(battery.accessibilityText)
+            } else {
+                button.image = Self.standardIcon()
+                button.setAccessibilityLabel("CustomMacOS")
+            }
+        }
+
+        // A separate battery icon for "Both", or for "Battery" when CustomMacOS has no menu bar icon.
+        let wantsSeparate = battery != nil && (style == .both || (style == .battery && statusItem == nil))
+        if wantsSeparate, let battery {
+            if batteryItem == nil {
+                let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+                let menu = NSMenu()
+                menu.delegate = self
+                item.menu = menu
+                batteryItem = item
+            }
+            batteryItem?.button?.image = BatteryIcon.image(for: battery, showPercentage: showPercent)
+            batteryItem?.button?.setAccessibilityLabel(battery.accessibilityText)
+        } else if let item = batteryItem {
+            NSStatusBar.system.removeStatusItem(item)
+            batteryItem = nil
+        }
+    }
+
+    /// The battery details at the top of the menu, like macOS's own battery menu.
+    private func addBatterySection(to menu: NSMenu) {
+        guard settings.menuBarIconStyle != .standard else { return }
+        BatteryStatus.shared.refresh()
+        guard let b = BatteryStatus.shared.snapshot else { return }
+        let header = NSMenuItem(title: "Battery", action: nil, keyEquivalent: "")
+        header.attributedTitle = NSAttributedString(
+            string: "Battery  \(b.percent)%",
+            attributes: [.font: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)])
+        menu.addItem(header)
+        menu.addItem(NSMenuItem(title: b.statusLine, action: nil, keyEquivalent: ""))
+        if b.lowPowerMode {
+            menu.addItem(NSMenuItem(title: "Low Power Mode is on", action: nil, keyEquivalent: ""))
+        }
+        let open = NSMenuItem(title: "Battery Settings…", action: #selector(openBatterySettings), keyEquivalent: "")
+        open.target = self
+        menu.addItem(open)
+        menu.addItem(.separator())
+    }
+
+    @objc private func openBatterySettings() {
+        BatteryStatus.openBatterySettings()
+    }
+
     // MARK: Status menu
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
+        addBatterySection(to: menu)
         // Opening this menu doesn't bring CustomMacOS forward, so the frontmost app is still the target.
         let target = ActiveAppTracker.shared.targetApp
         let addTitle = target?.localizedName.map { "Add Shortcut to “\($0)” Menu Item…" } ?? "Add Shortcut to Menu Item…"

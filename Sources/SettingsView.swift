@@ -24,6 +24,7 @@ struct SettingsView: View {
 
 private struct GeneralTab: View {
     @ObservedObject var settings: AppSettings
+    @ObservedObject var battery = BatteryStatus.shared
 
     var body: some View {
         Form {
@@ -37,6 +38,22 @@ private struct GeneralTab: View {
                     set: { settings.setLaunchAtLogin($0) }))
             } footer: {
                 Text("In Dock-only mode, click the Dock icon to reopen these settings.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section {
+                Picker("Menu bar icon", selection: $settings.menuBarIconStyle) {
+                    ForEach(MenuBarIconStyle.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .disabled(!battery.hasBattery)
+                if settings.menuBarIconStyle != .standard && battery.hasBattery {
+                    Toggle("Show battery percentage", isOn: $settings.batteryShowsPercentage)
+                }
+            } footer: {
+                Text(battery.hasBattery
+                     ? "Battery shows the battery level in place of the CustomMacOS icon; Both shows it as a separate icon. Click it for battery details and the CustomMacOS menu. To avoid two battery icons, turn off macOS's own in System Settings → Menu Bar (Control Centre on older macOS) → Battery."
+                     : "This Mac has no battery, so the menu bar shows the CustomMacOS icon.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 

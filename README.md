@@ -117,6 +117,18 @@ The Neural Engine figure is estimated from its power draw, because macOS reports
 
 The monitor code lives in `Sources/Monitor`, a copy of `Sources/MenuPulse/Monitor` from the MenuPulse project. To pull in a newer version, run `Tools/sync-monitor.sh` (it expects MenuPulse in the folder next to this one).
 
+## Battery in the menu bar
+
+**Settings → General → Menu bar icon** chooses what CustomMacOS shows in the menu bar:
+
+- **CustomMacOS**: the normal icon.
+- **Battery**: a battery level indicator in place of it, drawn like macOS's own: it fills to the current level, shows a bolt while charging or a plug when on power but not charging, turns red at 10% or below and yellow in Low Power Mode. **Show battery percentage** adds the number beside it.
+- **Both**: the battery as a separate icon next to the CustomMacOS one.
+
+Clicking the battery opens the CustomMacOS menu with a battery section at the top: level, charging state, time remaining or time until full, Low Power Mode, and **Battery Settings…**. macOS doesn't let other apps read its "Using Significant Energy" list or switch Low Power Mode, so those stay in macOS's own battery settings.
+
+To use it instead of macOS's battery icon, turn that off in System Settings → Menu Bar (Control Centre on older macOS) → Battery. On Macs without a battery the normal icon is shown.
+
 ## Windows keyboards: swap ⌥ Option and ⌘ Command
 
 On a Windows/PC keyboard, Alt sits where ⌘ Command is on a Mac keyboard. In **Settings → Keyboard → Swap ⌥ Option and ⌘ Command**, every connected keyboard is listed; turn the swap on for the ones that need it. Other keyboards (including the built-in one) are unaffected.
@@ -142,6 +154,8 @@ Sources/
   HotkeyManager.swift   global shortcuts (Carbon hot keys)
   DragSnapper.swift     drag-to-edge snapping + preview overlay
   KeyRemapper.swift     Caps Lock → Hyper/Escape, Shift+Caps → Caps Lock
+  KeyboardMappings.swift    hidutil mappings: Caps Lock → F18 and per-keyboard Option/Command swap
+  BatteryStatus.swift   battery reading and the battery menu bar icon
   MenuReader.swift      reads another app's menus and shortcuts (Accessibility API); key layout helpers
   AppShortcutStore.swift      app shortcut list, macOS App Shortcuts, clash checking, system shortcuts
   AppShortcutTrigger.swift    presses menu items for app shortcuts; tracks the frontmost app
