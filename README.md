@@ -86,7 +86,7 @@ The apps behind hidden icons keep running. Right-click the chevron for a small m
 
 Like System Settings → Keyboard → Keyboard Shortcuts → App Shortcuts, but from the CustomMacOS menu and with clash checking.
 
-1. With any app in front, choose **Add Shortcut to “App” Menu Item…** from the CustomMacOS menu. (Opening a menu-bar menu doesn't switch away from the app.)
+1. With any app in front, choose **Add Shortcut to “App” Menu Item…** near the bottom of the CustomMacOS menu, just above Settings. (Opening a menu-bar menu doesn't switch away from the app.)
 2. Search for and select the menu item. Its current shortcut, if any, is shown on the right.
 3. Record the new shortcut. Before you save, CustomMacOS warns if it's already used by:
    - another item anywhere in that app's menus,

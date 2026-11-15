@@ -220,13 +220,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         addBatterySection(to: menu)
-        // Opening this menu doesn't bring CustomMacOS forward, so the frontmost app is still the target.
-        let target = ActiveAppTracker.shared.targetApp
-        let addTitle = target?.localizedName.map { "Add Shortcut to “\($0)” Menu Item…" } ?? "Add Shortcut to Menu Item…"
-        let add = NSMenuItem(title: addTitle, action: target == nil ? nil : #selector(addAppShortcut), keyEquivalent: "")
-        add.target = self
-        menu.addItem(add)
-        menu.addItem(.separator())
         if MonitorSettings.shared.enabled {
             let monitor = NSMenuItem(title: "System Monitor…", action: #selector(showSystemMonitor), keyEquivalent: "")
             monitor.target = self
@@ -260,6 +253,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             menu.addItem(hider)
             menu.addItem(.separator())
         }
+        // Used occasionally, so it sits near the bottom, just above Settings.
+        // Opening this menu doesn't bring CustomMacOS forward, so the frontmost app is still the target.
+        let target = ActiveAppTracker.shared.targetApp
+        let addTitle = target?.localizedName.map { "Add Shortcut to “\($0)” Menu Item…" } ?? "Add Shortcut to Menu Item…"
+        let add = NSMenuItem(title: addTitle, action: target == nil ? nil : #selector(addAppShortcut), keyEquivalent: "")
+        add.target = self
+        menu.addItem(add)
+        menu.addItem(.separator())
         if !settings.accessibilityGranted {
             let grant = NSMenuItem(title: "Grant Accessibility Access…", action: #selector(grantAccess), keyEquivalent: "")
             grant.target = self
