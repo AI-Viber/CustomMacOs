@@ -130,12 +130,12 @@ enum BatteryIcon {
         let text = showPercentage ? "\(s.percent)%" : ""
         let textSize = text.isEmpty ? .zero : (text as NSString).size(withAttributes: [.font: font])
 
-        // Fill the menu bar's full height (taller on Macs with a notch), less a hairline margin.
+        // Fill the menu bar's full height (much taller on Macs with a notch), less a small margin.
         let height = max(18, barHeight ?? NSStatusBar.system.thickness)
-        let margin: CGFloat = 1
+        let margin = max(2, (height * 0.08).rounded())
         let bodyW = max(10, bodyWidth)
-        let nubH: CGFloat = 2, nubW = max(5, bodyW * 0.3)
-        let bodyH = height - 2 * margin - nubH - 0.6
+        let nubH = max(2, (height * 0.08).rounded()), nubW = max(5, bodyW * 0.4)
+        let bodyH = height - 2 * margin - nubH - 1
         let gap: CGFloat = text.isEmpty ? 0 : 3
         let width = ceil(textSize.width + gap + bodyW + 1)
 
@@ -167,16 +167,22 @@ enum BatteryIcon {
 
             let x0 = textSize.width + gap + 0.5
             let body = NSRect(x: x0, y: margin, width: bodyW, height: bodyH)
-            ink.withAlphaComponent(0.35).setFill()
-            NSBezierPath(roundedRect: body, xRadius: 3.5, yRadius: 3.5).fill()
+            // A clear outline, plus a faint tint inside so the empty part still reads as battery.
+            let line: CGFloat = 1.5
+            let outline = NSBezierPath(roundedRect: body.insetBy(dx: line / 2, dy: line / 2), xRadius: 4, yRadius: 4)
+            ink.withAlphaComponent(0.15).setFill()
+            outline.fill()
+            outline.lineWidth = line
+            ink.withAlphaComponent(0.75).setStroke()
+            outline.stroke()
 
             // Terminal on top.
-            let nub = NSRect(x: body.midX - nubW / 2, y: body.maxY + 0.6, width: nubW, height: nubH)
-            ink.withAlphaComponent(0.4).setFill()
-            NSBezierPath(roundedRect: nub, xRadius: 0.8, yRadius: 0.8).fill()
+            let nub = NSRect(x: body.midX - nubW / 2, y: body.maxY + 1, width: nubW, height: nubH)
+            ink.withAlphaComponent(0.75).setFill()
+            NSBezierPath(roundedRect: nub, xRadius: 1, yRadius: 1).fill()
 
             // Charge rises from the bottom.
-            let inner = body.insetBy(dx: 2, dy: 2)
+            let inner = body.insetBy(dx: line + 1.5, dy: line + 1.5)
             let level = CGFloat(s.percent) / 100
             if level > 0 {
                 let fill = NSRect(x: inner.minX, y: inner.minY,

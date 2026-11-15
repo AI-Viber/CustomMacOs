@@ -50,6 +50,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 
         // Battery icon: redraw when the battery or the icon settings change.
         BatteryStatus.shared.start()
+        NotificationCenter.default.addObserver(self, selector: #selector(screensChanged),
+                                               name: NSApplication.didChangeScreenParametersNotification, object: nil)
         Publishers.Merge4(settings.$menuBarIconStyle.map { _ in () },
                           settings.$batteryShowsPercentage.map { _ in () },
                           settings.$batteryIconWidth.removeDuplicates().map { _ in () },
@@ -118,6 +120,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         NSApp.setActivationPolicy(wantsDock ? .regular : .accessory)
         if wantsMenuBar { installStatusItem() } else { removeStatusItem() }
         updateMenuBarIcons()
+        redrawIconsOnceShown()
         // Switching activation policy can hide our window; bring it back.
         if let w = settingsWindow, w.isVisible {
             DispatchQueue.main.async {
@@ -166,6 +169,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         // A separate battery icon for "Both", or for "Battery" when CustomMacOS has no menu bar icon.
         let wantsSeparate = battery != nil && (style == .both || (style == .battery && statusItem == nil))
         if wantsSeparate, let battery {
+            let isNewItem = batteryItem == nil
             if batteryItem == nil {
                 let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
                 let menu = NSMenu()
@@ -174,16 +178,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
                 batteryItem = item
             }
             if let button = batteryItem?.button { showBattery(battery, in: button) }
+            if isNewItem { redrawIconsOnceShown() }
         } else if let item = batteryItem {
             NSStatusBar.system.removeStatusItem(item)
             batteryItem = nil
         }
     }
 
+    /// A new menu bar item has no window (and so no height) until it's on screen; draw it again
+    /// once it is. Also redraw when displays change, since menu bars differ in height.
+    private func redrawIconsOnceShown() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.updateMenuBarIcons() }
+    }
+
+    @objc private func screensChanged() {
+        redrawIconsOnceShown()
+    }
+
     /// Draws the battery at the button's full height. Scaling is turned off so the menu bar
     /// doesn't shrink it to fit.
     private func showBattery(_ battery: BatterySnapshot, in button: NSStatusBarButton) {
-        let barHeight = button.bounds.height > 0 ? button.bounds.height : NSStatusBar.system.thickness
+        // The status item's window is as tall as the menu bar it's in: about 37 points on Macs
+        // with a notch, against the 22–24 that NSStatusBar.thickness reports.
+        let barHeight = max(button.window?.frame.height ?? 0, button.bounds.height, NSStatusBar.system.thickness)
+        DiagnosticsLog.append("battery", "icon height \(barHeight) (window \(button.window?.frame.height ?? -1), button \(button.bounds.height), thickness \(NSStatusBar.system.thickness)), width \(settings.batteryIconWidth)")
         button.imageScaling = .scaleNone
         button.imagePosition = .imageOnly
         button.image = BatteryIcon.image(for: battery, showPercentage: settings.batteryShowsPercentage,
@@ -196,14 +214,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         guard settings.menuBarIconStyle != .standard else { return }
         BatteryStatus.shared.refresh()
         guard let b = BatteryStatus.shared.snapshot else { return }
-        let header = NSMenuItem(title: "Battery", action: nil, keyEquivalent: "")
-        header.attributedTitle = NSAttributedString(
-            string: "Battery  \(b.percent)%",
-            attributes: [.font: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)])
-        menu.addItem(header)
-        menu.addItem(NSMenuItem(title: b.statusLine, action: nil, keyEquivalent: ""))
+        // Information lines: given explicit colours so they read like macOS's battery menu
+        // rather than as greyed-out commands.
+        func info(_ text: String, font: NSFont, colour: NSColor) {
+            let item = NSMenuItem(title: text, action: nil, keyEquivalent: "")
+            item.attributedTitle = NSAttributedString(string: text, attributes: [.font: font, .foregroundColor: colour])
+            menu.addItem(item)
+        }
+        info("Battery  \(b.percent)%", font: .boldSystemFont(ofSize: NSFont.systemFontSize), colour: .labelColor)
+        info(b.statusLine, font: .menuFont(ofSize: 0), colour: .secondaryLabelColor)
         if b.lowPowerMode {
-            menu.addItem(NSMenuItem(title: "Low Power Mode is on", action: nil, keyEquivalent: ""))
+            info("Low Power Mode is on", font: .menuFont(ofSize: 0), colour: .secondaryLabelColor)
         }
         let open = NSMenuItem(title: "Battery Settings…", action: #selector(openBatterySettings), keyEquivalent: "")
         open.target = self
