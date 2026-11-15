@@ -222,3 +222,36 @@ enum BatteryIcon {
         symbol.draw(in: r, from: .zero, operation: .sourceOver, fraction: 1)
     }
 }
+
+/// Shows the battery image centred in a menu bar button. Clicks pass through to the button,
+/// so it still opens the menu and highlights as usual.
+final class BatteryIconView: NSView {
+    var image: NSImage? { didSet { needsDisplay = true } }
+
+    static func show(_ image: NSImage, in button: NSStatusBarButton) {
+        let view = button.subviews.compactMap { $0 as? BatteryIconView }.first ?? {
+            let v = BatteryIconView(frame: button.bounds)
+            v.autoresizingMask = [.width, .height]
+            button.addSubview(v)
+            return v
+        }()
+        view.frame = button.bounds
+        view.image = image
+    }
+
+    static func remove(from button: NSStatusBarButton) {
+        button.subviews.filter { $0 is BatteryIconView }.forEach { $0.removeFromSuperview() }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard let image else { return }
+        let size = image.size
+        let rect = NSRect(x: ((bounds.width - size.width) / 2).rounded(),
+                          y: ((bounds.height - size.height) / 2).rounded(),
+                          width: size.width, height: size.height)
+        image.draw(in: rect)
+    }
+
+    // Let clicks reach the status bar button underneath.
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}

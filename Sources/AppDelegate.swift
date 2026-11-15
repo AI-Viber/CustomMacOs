@@ -156,13 +156,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         let style = settings.menuBarIconStyle
         let battery = BatteryStatus.shared.snapshot  // nil on Macs without a battery
 
-        if let button = statusItem?.button {
+        if let item = statusItem {
             if style == .battery, let battery {
-                showBattery(battery, in: button)
+                showBattery(battery, in: item)
             } else {
-                button.imageScaling = .scaleProportionallyDown
-                button.image = Self.standardIcon()
-                button.setAccessibilityLabel("CustomMacOS")
+                showStandardIcon(in: item)
             }
         }
 
@@ -177,7 +175,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
                 item.menu = menu
                 batteryItem = item
             }
-            if let button = batteryItem?.button { showBattery(battery, in: button) }
+            if let item = batteryItem { showBattery(battery, in: item) }
             if isNewItem { redrawIconsOnceShown() }
         } else if let item = batteryItem {
             NSStatusBar.system.removeStatusItem(item)
@@ -195,18 +193,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         redrawIconsOnceShown()
     }
 
-    /// Draws the battery at the button's full height. Scaling is turned off so the menu bar
-    /// doesn't shrink it to fit.
-    private func showBattery(_ battery: BatterySnapshot, in button: NSStatusBarButton) {
-        // The status item's window is as tall as the menu bar it's in: about 37 points on Macs
-        // with a notch, against the 22–24 that NSStatusBar.thickness reports.
+    private func showStandardIcon(in item: NSStatusItem) {
+        guard let button = item.button else { return }
+        BatteryIconView.remove(from: button)
+        item.length = NSStatusItem.variableLength
+        button.imageScaling = .scaleProportionallyDown
+        button.image = Self.standardIcon()
+        button.setAccessibilityLabel("CustomMacOS")
+    }
+
+    /// Draws the battery at the menu bar's full height. The button itself only centres icons of
+    /// the usual 22-point height (a taller one sits low), so the battery is drawn by a view that
+    /// fills the button and centres it exactly; the button underneath still opens the menu.
+    private func showBattery(_ battery: BatterySnapshot, in item: NSStatusItem) {
+        guard let button = item.button else { return }
+        // The status item's window is as tall as the menu bar it's in: 38 points on this
+        // MacBook Air with a notch, against the 22 that NSStatusBar.thickness reports.
         let barHeight = max(button.window?.frame.height ?? 0, button.bounds.height, NSStatusBar.system.thickness)
-        DiagnosticsLog.append("battery", "icon height \(barHeight) (window \(button.window?.frame.height ?? -1), button \(button.bounds.height), thickness \(NSStatusBar.system.thickness)), width \(settings.batteryIconWidth)")
-        button.imageScaling = .scaleNone
-        button.imagePosition = .imageOnly
-        button.image = BatteryIcon.image(for: battery, showPercentage: settings.batteryShowsPercentage,
-                                         bodyWidth: CGFloat(settings.batteryIconWidth), barHeight: barHeight)
+        let image = BatteryIcon.image(for: battery, showPercentage: settings.batteryShowsPercentage,
+                                      bodyWidth: CGFloat(settings.batteryIconWidth), barHeight: barHeight)
+        button.image = nil
+        button.title = ""
+        item.length = image.size.width + 8  // a little padding either side, like other icons
+        BatteryIconView.show(image, in: button)
         button.setAccessibilityLabel(battery.accessibilityText)
+        DiagnosticsLog.append("battery", "bar height \(barHeight) (window \(button.window?.frame.height ?? -1), button \(button.bounds.height)), icon \(image.size.width)×\(image.size.height)")
     }
 
     /// The battery details at the top of the menu, like macOS's own battery menu.
