@@ -123,7 +123,7 @@ The monitor code lives in `Sources/Monitor`, a copy of `Sources/MenuPulse/Monito
 
 - **CustomMacOS**: the normal icon.
 - **Battery**: an upright battery in place of it, 30 points wide by default (adjust with **Battery width**), filling from the bottom to the current level.
-  - **Battery percentage**: Off, Beside ("87%" next to the battery) or Inside (the number alone, inside the battery, in place of the charging bolt or plug).
+  - **Battery percentage**: Off, Beside ("87%" next to the battery) or Inside (the number alone, inside the battery, in place of the charging bolt or plug; black over the charged part so it reads clearly against the colour).
   - **Colour the charge level** (on by default): blue while charging, yellow in Low Power Mode, otherwise green above 20%, orange from 10% to 20% and red below 10%. With it off, the level is the menu bar's text colour, red at 10% or below and yellow in Low Power Mode, with a bolt while charging or a plug when on power but not charging.
 - **Both**: the battery as a separate icon next to the CustomMacOS one.
 

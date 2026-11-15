@@ -229,16 +229,17 @@ enum BatteryIcon {
         // Charge rises from the bottom.
         let inner = body.insetBy(dx: line + 1.5, dy: line + 1.5)
         let level = CGFloat(s.percent) / 100
+        var fillRect = NSRect.zero
         if level > 0 {
-            let fill = NSRect(x: inner.minX, y: inner.minY,
+            fillRect = NSRect(x: inner.minX, y: inner.minY,
                               width: inner.width, height: max(1.5, inner.height * level))
             fillColour.setFill()
-            NSBezierPath(roundedRect: fill, xRadius: 2, yRadius: 2).fill()
+            NSBezierPath(roundedRect: fillRect, xRadius: 2, yRadius: 2).fill()
         }
 
         if !insideText.isEmpty {
             // The number takes the place of the bolt or plug.
-            drawNumber(insideText, centredIn: body, ink: ink)
+            drawNumber(insideText, centredIn: body, ink: ink, fillRect: fillRect, fillColour: fillColour)
         } else if s.onACPower {
             // Charging bolt, or plug when on power but not charging.
             drawGlyph(s.isCharging ? "bolt.fill" : "powerplug.fill", centredIn: body, ink: ink,
@@ -246,26 +247,35 @@ enum BatteryIcon {
         }
     }
 
-    /// Draws the percentage inside the battery, as large as fits, with a knocked-out outline.
-    private static func drawNumber(_ text: String, centredIn rect: NSRect, ink: NSColor) {
+    /// Draws the percentage inside the battery, as large as fits. Over the charged part the
+    /// digits are black (white if the fill itself is dark); over the empty part they use the
+    /// menu bar's text colour, so the number stays readable at any charge level.
+    private static func drawNumber(_ text: String, centredIn rect: NSRect, ink: NSColor,
+                                   fillRect: NSRect, fillColour: NSColor) {
         var size = min(rect.height * 0.62, 11)
-        var attributes: [NSAttributedString.Key: Any] = [:]
-        var textSize = NSSize.zero
-        while true {
-            attributes = [.font: NSFont.systemFont(ofSize: size, weight: .bold), .foregroundColor: ink]
-            textSize = (text as NSString).size(withAttributes: attributes)
-            if textSize.width <= rect.width - 5 || size <= 5 { break }
+        var font = NSFont.systemFont(ofSize: size, weight: .bold)
+        var textSize = (text as NSString).size(withAttributes: [.font: font])
+        while textSize.width > rect.width - 5 && size > 5 {
             size -= 0.5
+            font = NSFont.systemFont(ofSize: size, weight: .bold)
+            textSize = (text as NSString).size(withAttributes: [.font: font])
         }
-        let imageSize = NSSize(width: ceil(textSize.width), height: ceil(textSize.height))
-        guard imageSize.width > 0, imageSize.height > 0 else { return }
-        let label = NSImage(size: imageSize, flipped: false) { _ in
-            (text as NSString).draw(at: .zero, withAttributes: attributes)
-            return true
-        }
-        let r = NSRect(x: rect.midX - imageSize.width / 2, y: rect.midY - imageSize.height / 2,
-                       width: imageSize.width, height: imageSize.height)
-        drawKnockedOut(label, in: r)
+        let origin = NSPoint(x: rect.midX - textSize.width / 2, y: rect.midY - textSize.height / 2)
+
+        // Over the empty part: the menu bar's text colour.
+        (text as NSString).draw(at: origin, withAttributes: [.font: font, .foregroundColor: ink])
+
+        // Over the charged part: black, or white when the fill is too dark for black to show.
+        guard !fillRect.isEmpty else { return }
+        let c = fillColour.usingColorSpace(.sRGB) ?? fillColour
+        let luminance = 0.2126 * c.redComponent + 0.7152 * c.greenComponent + 0.0722 * c.blueComponent
+        let onFill: NSColor = luminance > 0.3 ? .black : .white
+        NSGraphicsContext.saveGraphicsState()
+        NSBezierPath(roundedRect: fillRect, xRadius: 2, yRadius: 2).addClip()
+        fillColour.setFill()
+        NSRect(origin: origin, size: textSize).fill()  // cover the first pass's digits
+        (text as NSString).draw(at: origin, withAttributes: [.font: font, .foregroundColor: onFill])
+        NSGraphicsContext.restoreGraphicsState()
     }
 
     /// Draws an SF Symbol with a knocked-out outline, so it stays readable over the fill.
