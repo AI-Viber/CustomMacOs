@@ -57,11 +57,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
                                                             name: Notification.Name("AppleInterfaceThemeChangedNotification"),
                                                             object: nil)
         Publishers.Merge4(settings.$menuBarIconStyle.map { _ in () },
-                          settings.$batteryShowsPercentage.map { _ in () },
+                          settings.$batteryPercentStyle.map { _ in () },
                           settings.$batteryIconWidth.removeDuplicates().map { _ in () },
                           BatteryStatus.shared.$snapshot.map { _ in () })
             .dropFirst(4)
             .sink { [weak self] in DispatchQueue.main.async { self?.updateMenuBarIcons() } }
+            .store(in: &cancellables)
+        settings.$batteryColoured.dropFirst()
+            .sink { [weak self] _ in DispatchQueue.main.async { self?.updateMenuBarIcons() } }
             .store(in: &cancellables)
         updateMenuBarIcons()
 
@@ -210,7 +213,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         guard let button = item.button else { return }
         button.imagePosition = .imageOnly
         button.imageScaling = .scaleProportionallyDown
-        button.image = BatteryIcon.image(for: battery, showPercentage: settings.batteryShowsPercentage,
+        button.image = BatteryIcon.image(for: battery, percent: settings.batteryPercentStyle,
+                                         coloured: settings.batteryColoured,
                                          bodyWidth: CGFloat(settings.batteryIconWidth),
                                          barHeight: button.bounds.height,
                                          appearance: button.effectiveAppearance)

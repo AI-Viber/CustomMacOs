@@ -48,7 +48,11 @@ private struct GeneralTab: View {
                 .pickerStyle(.segmented)
                 .disabled(!battery.hasBattery)
                 if settings.menuBarIconStyle != .standard && battery.hasBattery {
-                    Toggle("Show battery percentage", isOn: $settings.batteryShowsPercentage)
+                    Picker("Battery percentage", selection: $settings.batteryPercentStyle) {
+                        ForEach(BatteryPercentStyle.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    Toggle("Colour the charge level", isOn: $settings.batteryColoured)
                     HStack {
                         Text("Battery width")
                         Slider(value: $settings.batteryIconWidth, in: 12...44, step: 1)

@@ -129,10 +129,14 @@ enum BatteryIcon {
     ///   - barHeight: the menu bar button's height; the battery uses all of it but a 1pt margin.
     ///   - appearance: the button's appearance, so the battery is light on a dark menu bar and
     ///     dark on a light one.
-    static func image(for s: BatterySnapshot, showPercentage: Bool, bodyWidth: CGFloat = 30,
-                      barHeight: CGFloat? = nil, appearance: NSAppearance? = nil) -> NSImage {
+    ///   - percent: show the percentage beside the battery ("87%"), inside it ("87"), or not at all.
+    ///   - coloured: colour the charge level by state (see `levelColour`).
+    static func image(for s: BatterySnapshot, percent: BatteryPercentStyle, coloured: Bool,
+                      bodyWidth: CGFloat = 30, barHeight: CGFloat? = nil,
+                      appearance: NSAppearance? = nil) -> NSImage {
         let font = NSFont.menuBarFont(ofSize: 0)
-        let text = showPercentage ? "\(s.percent)%" : ""
+        let text = percent == .beside ? "\(s.percent)%" : ""
+        let insideText = percent == .inside ? "\(s.percent)" : ""
         let textSize = text.isEmpty ? .zero : (text as NSString).size(withAttributes: [.font: font])
 
         // Same rule as the System Monitor icons: menu bar buttons give 22–24pt of usable height
@@ -162,12 +166,13 @@ enum BatteryIcon {
                 guard let ctx = NSGraphicsContext(bitmapImageRep: rep) else { drewOK = false; return }
                 // Resolve colours for this menu bar now (light or dark).
                 let ink = NSColor.labelColor.usingColorSpace(.sRGB) ?? .labelColor
-                let warn: NSColor? = s.lowPowerMode ? .systemYellow : (s.isLow ? .systemRed : nil)
+                let warn: NSColor? = coloured ? levelColour(for: s)
+                    : (s.lowPowerMode ? .systemYellow : (s.isLow ? .systemRed : nil))
                 let fillColour = warn.flatMap { $0.usingColorSpace(.sRGB) } ?? ink
 
                 NSGraphicsContext.saveGraphicsState()
                 NSGraphicsContext.current = ctx
-                drawBattery(s, text: text, textSize: textSize, font: font, gap: gap,
+                drawBattery(s, text: text, insideText: insideText, textSize: textSize, font: font, gap: gap,
                             bodyW: bodyW, bodyH: bodyH, nubW: nubW, nubH: nubH,
                             ink: ink, fillColour: fillColour)
                 NSGraphicsContext.restoreGraphicsState()
@@ -185,7 +190,18 @@ enum BatteryIcon {
         return image
     }
 
-    private static func drawBattery(_ s: BatterySnapshot, text: String, textSize: NSSize, font: NSFont,
+    /// Blue while charging, yellow in Low Power Mode, otherwise green above 20%,
+    /// orange from 10% to 20%, and red below 10%.
+    static func levelColour(for s: BatterySnapshot) -> NSColor {
+        if s.isCharging { return .systemBlue }
+        if s.lowPowerMode { return .systemYellow }
+        if s.percent < 10 { return .systemRed }
+        if s.percent <= 20 { return .systemOrange }
+        return .systemGreen
+    }
+
+    private static func drawBattery(_ s: BatterySnapshot, text: String, insideText: String,
+                                    textSize: NSSize, font: NSFont,
                                     gap: CGFloat, bodyW: CGFloat, bodyH: CGFloat, nubW: CGFloat, nubH: CGFloat,
                                     ink: NSColor, fillColour: NSColor) {
         let totalH = bodyH + 1 + nubH
@@ -220,11 +236,36 @@ enum BatteryIcon {
             NSBezierPath(roundedRect: fill, xRadius: 2, yRadius: 2).fill()
         }
 
-        // Charging bolt, or plug when on power but not charging.
-        if s.onACPower {
+        if !insideText.isEmpty {
+            // The number takes the place of the bolt or plug.
+            drawNumber(insideText, centredIn: body, ink: ink)
+        } else if s.onACPower {
+            // Charging bolt, or plug when on power but not charging.
             drawGlyph(s.isCharging ? "bolt.fill" : "powerplug.fill", centredIn: body, ink: ink,
                       pointSize: min(bodyH * 0.6, bodyW * 0.7))
         }
+    }
+
+    /// Draws the percentage inside the battery, as large as fits, with a knocked-out outline.
+    private static func drawNumber(_ text: String, centredIn rect: NSRect, ink: NSColor) {
+        var size = min(rect.height * 0.62, 11)
+        var attributes: [NSAttributedString.Key: Any] = [:]
+        var textSize = NSSize.zero
+        while true {
+            attributes = [.font: NSFont.systemFont(ofSize: size, weight: .bold), .foregroundColor: ink]
+            textSize = (text as NSString).size(withAttributes: attributes)
+            if textSize.width <= rect.width - 5 || size <= 5 { break }
+            size -= 0.5
+        }
+        let imageSize = NSSize(width: ceil(textSize.width), height: ceil(textSize.height))
+        guard imageSize.width > 0, imageSize.height > 0 else { return }
+        let label = NSImage(size: imageSize, flipped: false) { _ in
+            (text as NSString).draw(at: .zero, withAttributes: attributes)
+            return true
+        }
+        let r = NSRect(x: rect.midX - imageSize.width / 2, y: rect.midY - imageSize.height / 2,
+                       width: imageSize.width, height: imageSize.height)
+        drawKnockedOut(label, in: r)
     }
 
     /// Draws an SF Symbol with a knocked-out outline, so it stays readable over the fill.
@@ -236,13 +277,17 @@ enum BatteryIcon {
         let size = symbol.size
         let r = NSRect(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2,
                        width: size.width, height: size.height)
-        // Cut a 1-point outline around the glyph...
+        drawKnockedOut(symbol, in: r)
+    }
+
+    private static func drawKnockedOut(_ image: NSImage, in r: NSRect) {
+        // Cut a 1-point outline around the shape...
         for dx in [-1.0, 0, 1.0] {
             for dy in [-1.0, 0, 1.0] where dx != 0 || dy != 0 {
-                symbol.draw(in: r.offsetBy(dx: dx, dy: dy), from: .zero, operation: .destinationOut, fraction: 1)
+                image.draw(in: r.offsetBy(dx: dx, dy: dy), from: .zero, operation: .destinationOut, fraction: 1)
             }
         }
-        // ...then draw the glyph itself.
-        symbol.draw(in: r, from: .zero, operation: .sourceOver, fraction: 1)
+        // ...then draw the shape itself.
+        image.draw(in: r, from: .zero, operation: .sourceOver, fraction: 1)
     }
 }

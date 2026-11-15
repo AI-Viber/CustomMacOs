@@ -27,6 +27,19 @@ enum MenuBarIconStyle: String, CaseIterable, Identifiable {
     }
 }
 
+/// Where the battery icon shows the charge percentage.
+enum BatteryPercentStyle: String, CaseIterable, Identifiable {
+    case off, beside, inside
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .off: return "Off"
+        case .beside: return "Beside"
+        case .inside: return "Inside"
+        }
+    }
+}
+
 enum CapsLockMode: String, CaseIterable, Identifiable {
     case hyperEscape, hyper, escape, off
     var id: String { rawValue }
@@ -54,8 +67,12 @@ final class AppSettings: ObservableObject {
     @Published var batteryIconWidth: Double {
         didSet { d.set(batteryIconWidth, forKey: "batteryIconWidth") }
     }
-    @Published var batteryShowsPercentage: Bool {
-        didSet { d.set(batteryShowsPercentage, forKey: "batteryShowsPercentage") }
+    @Published var batteryPercentStyle: BatteryPercentStyle {
+        didSet { d.set(batteryPercentStyle.rawValue, forKey: "batteryPercentStyle") }
+    }
+    /// Colour the charge level: green, orange, red, yellow (Low Power Mode), blue (charging).
+    @Published var batteryColoured: Bool {
+        didSet { d.set(batteryColoured, forKey: "batteryColoured") }
     }
     @Published var capsLockMode: CapsLockMode {
         didSet { d.set(capsLockMode.rawValue, forKey: "capsLockMode") }
@@ -92,7 +109,13 @@ final class AppSettings: ObservableObject {
         let d = UserDefaults.standard
         presence = AppPresence(rawValue: d.string(forKey: "presence") ?? "") ?? .menuBar
         menuBarIconStyle = MenuBarIconStyle(rawValue: d.string(forKey: "menuBarIconStyle") ?? "") ?? .standard
-        batteryShowsPercentage = d.object(forKey: "batteryShowsPercentage") as? Bool ?? false
+        if let style = BatteryPercentStyle(rawValue: d.string(forKey: "batteryPercentStyle") ?? "") {
+            batteryPercentStyle = style
+        } else {
+            // Carry over the earlier on/off setting.
+            batteryPercentStyle = d.bool(forKey: "batteryShowsPercentage") ? .beside : .off
+        }
+        batteryColoured = d.object(forKey: "batteryColoured") as? Bool ?? true
         batteryIconWidth = d.object(forKey: "batteryIconWidth") as? Double ?? 30
         capsLockMode = CapsLockMode(rawValue: d.string(forKey: "capsLockMode") ?? "") ?? .hyperEscape
         shiftCapsTogglesCapsLock = d.object(forKey: "shiftCapsTogglesCapsLock") as? Bool ?? true
