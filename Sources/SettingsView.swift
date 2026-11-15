@@ -49,6 +49,13 @@ private struct GeneralTab: View {
                 .disabled(!battery.hasBattery)
                 if settings.menuBarIconStyle != .standard && battery.hasBattery {
                     Toggle("Show battery percentage", isOn: $settings.batteryShowsPercentage)
+                    HStack {
+                        Text("Battery width")
+                        Slider(value: $settings.batteryIconWidth, in: 12...44, step: 1)
+                        Text("\(Int(settings.batteryIconWidth)) pt")
+                            .monospacedDigit()
+                            .frame(width: 44, alignment: .trailing)
+                    }
                 }
             } footer: {
                 Text(battery.hasBattery

@@ -50,10 +50,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 
         // Battery icon: redraw when the battery or the icon settings change.
         BatteryStatus.shared.start()
-        Publishers.Merge3(settings.$menuBarIconStyle.map { _ in () },
+        Publishers.Merge4(settings.$menuBarIconStyle.map { _ in () },
                           settings.$batteryShowsPercentage.map { _ in () },
+                          settings.$batteryIconWidth.removeDuplicates().map { _ in () },
                           BatteryStatus.shared.$snapshot.map { _ in () })
-            .dropFirst(3)
+            .dropFirst(4)
             .sink { [weak self] in DispatchQueue.main.async { self?.updateMenuBarIcons() } }
             .store(in: &cancellables)
         updateMenuBarIcons()
@@ -151,13 +152,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     private func updateMenuBarIcons() {
         let style = settings.menuBarIconStyle
         let battery = BatteryStatus.shared.snapshot  // nil on Macs without a battery
-        let showPercent = settings.batteryShowsPercentage
 
         if let button = statusItem?.button {
             if style == .battery, let battery {
-                button.image = BatteryIcon.image(for: battery, showPercentage: showPercent)
-                button.setAccessibilityLabel(battery.accessibilityText)
+                showBattery(battery, in: button)
             } else {
+                button.imageScaling = .scaleProportionallyDown
                 button.image = Self.standardIcon()
                 button.setAccessibilityLabel("CustomMacOS")
             }
@@ -173,12 +173,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
                 item.menu = menu
                 batteryItem = item
             }
-            batteryItem?.button?.image = BatteryIcon.image(for: battery, showPercentage: showPercent)
-            batteryItem?.button?.setAccessibilityLabel(battery.accessibilityText)
+            if let button = batteryItem?.button { showBattery(battery, in: button) }
         } else if let item = batteryItem {
             NSStatusBar.system.removeStatusItem(item)
             batteryItem = nil
         }
+    }
+
+    /// Draws the battery at the button's full height. Scaling is turned off so the menu bar
+    /// doesn't shrink it to fit.
+    private func showBattery(_ battery: BatterySnapshot, in button: NSStatusBarButton) {
+        let barHeight = button.bounds.height > 0 ? button.bounds.height : NSStatusBar.system.thickness
+        button.imageScaling = .scaleNone
+        button.imagePosition = .imageOnly
+        button.image = BatteryIcon.image(for: battery, showPercentage: settings.batteryShowsPercentage,
+                                         bodyWidth: CGFloat(settings.batteryIconWidth), barHeight: barHeight)
+        button.setAccessibilityLabel(battery.accessibilityText)
     }
 
     /// The battery details at the top of the menu, like macOS's own battery menu.

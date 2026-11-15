@@ -123,16 +123,18 @@ final class BatteryStatus: ObservableObject {
 /// Draws an upright battery for the menu bar, using the bar's full height and filling
 /// from the bottom, in the style of macOS's own battery icon.
 enum BatteryIcon {
-    static func image(for s: BatterySnapshot, showPercentage: Bool) -> NSImage {
+    /// `bodyWidth` is the battery's width in points; `barHeight` the menu bar button's height.
+    static func image(for s: BatterySnapshot, showPercentage: Bool,
+                      bodyWidth: CGFloat = 30, barHeight: CGFloat? = nil) -> NSImage {
         let font = NSFont.menuBarFont(ofSize: 0)
         let text = showPercentage ? "\(s.percent)%" : ""
         let textSize = text.isEmpty ? .zero : (text as NSString).size(withAttributes: [.font: font])
 
-        // Fill the menu bar's height (taller on Macs with a notch), less a small margin.
-        let height = max(22, NSStatusBar.system.thickness)
-        let margin: CGFloat = 1.5
-        let nubH: CGFloat = 1.6, nubW: CGFloat = 5
-        let bodyW: CGFloat = 11
+        // Fill the menu bar's full height (taller on Macs with a notch), less a hairline margin.
+        let height = max(18, barHeight ?? NSStatusBar.system.thickness)
+        let margin: CGFloat = 1
+        let bodyW = max(10, bodyWidth)
+        let nubH: CGFloat = 2, nubW = max(5, bodyW * 0.3)
         let bodyH = height - 2 * margin - nubH - 0.6
         let gap: CGFloat = text.isEmpty ? 0 : 3
         let width = ceil(textSize.width + gap + bodyW + 1)
@@ -166,7 +168,7 @@ enum BatteryIcon {
             let x0 = textSize.width + gap + 0.5
             let body = NSRect(x: x0, y: margin, width: bodyW, height: bodyH)
             ink.withAlphaComponent(0.35).setFill()
-            NSBezierPath(roundedRect: body, xRadius: 2.8, yRadius: 2.8).fill()
+            NSBezierPath(roundedRect: body, xRadius: 3.5, yRadius: 3.5).fill()
 
             // Terminal on top.
             let nub = NSRect(x: body.midX - nubW / 2, y: body.maxY + 0.6, width: nubW, height: nubH)
@@ -174,18 +176,19 @@ enum BatteryIcon {
             NSBezierPath(roundedRect: nub, xRadius: 0.8, yRadius: 0.8).fill()
 
             // Charge rises from the bottom.
-            let inner = body.insetBy(dx: 1.6, dy: 1.6)
+            let inner = body.insetBy(dx: 2, dy: 2)
             let level = CGFloat(s.percent) / 100
             if level > 0 {
                 let fill = NSRect(x: inner.minX, y: inner.minY,
                                   width: inner.width, height: max(1.5, inner.height * level))
                 fillColour.setFill()
-                NSBezierPath(roundedRect: fill, xRadius: 1.6, yRadius: 1.6).fill()
+                NSBezierPath(roundedRect: fill, xRadius: 2, yRadius: 2).fill()
             }
 
             // Charging bolt, or plug when on power but not charging.
             if s.onACPower {
-                drawGlyph(s.isCharging ? "bolt.fill" : "powerplug.fill", centredIn: body, ink: ink)
+                drawGlyph(s.isCharging ? "bolt.fill" : "powerplug.fill", centredIn: body, ink: ink,
+                          pointSize: min(bodyH * 0.6, bodyW * 0.7))
             }
             return true
         }
@@ -195,8 +198,8 @@ enum BatteryIcon {
     }
 
     /// Draws an SF Symbol with a knocked-out outline, so it stays readable over the fill.
-    private static func drawGlyph(_ name: String, centredIn rect: NSRect, ink: NSColor) {
-        let config = NSImage.SymbolConfiguration(pointSize: 8, weight: .heavy)
+    private static func drawGlyph(_ name: String, centredIn rect: NSRect, ink: NSColor, pointSize: CGFloat) {
+        let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .heavy)
             .applying(NSImage.SymbolConfiguration(paletteColors: [ink]))
         guard let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
             .withSymbolConfiguration(config) else { return }

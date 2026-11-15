@@ -50,6 +50,10 @@ final class AppSettings: ObservableObject {
     @Published var menuBarIconStyle: MenuBarIconStyle {
         didSet { d.set(menuBarIconStyle.rawValue, forKey: "menuBarIconStyle") }
     }
+    /// Width of the battery icon in points.
+    @Published var batteryIconWidth: Double {
+        didSet { d.set(batteryIconWidth, forKey: "batteryIconWidth") }
+    }
     @Published var batteryShowsPercentage: Bool {
         didSet { d.set(batteryShowsPercentage, forKey: "batteryShowsPercentage") }
     }
@@ -89,6 +93,7 @@ final class AppSettings: ObservableObject {
         presence = AppPresence(rawValue: d.string(forKey: "presence") ?? "") ?? .menuBar
         menuBarIconStyle = MenuBarIconStyle(rawValue: d.string(forKey: "menuBarIconStyle") ?? "") ?? .standard
         batteryShowsPercentage = d.object(forKey: "batteryShowsPercentage") as? Bool ?? false
+        batteryIconWidth = d.object(forKey: "batteryIconWidth") as? Double ?? 30
         capsLockMode = CapsLockMode(rawValue: d.string(forKey: "capsLockMode") ?? "") ?? .hyperEscape
         shiftCapsTogglesCapsLock = d.object(forKey: "shiftCapsTogglesCapsLock") as? Bool ?? true
         dragToSnap = d.object(forKey: "dragToSnap") as? Bool ?? true
