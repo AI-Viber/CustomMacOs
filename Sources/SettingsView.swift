@@ -17,8 +17,54 @@ struct SettingsView: View {
                 .tabItem { Label("App Shortcuts", systemImage: "command") }
             MonitorTab()
                 .tabItem { Label("Monitor", systemImage: "waveform.path.ecg") }
+            AboutTab()
+                .tabItem { Label("About", systemImage: "info.circle") }
         }
         .frame(width: 600, height: 620)
+    }
+}
+
+private struct AboutTab: View {
+    @State private var copied = false
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Spacer(minLength: 10)
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 96, height: 96)
+            VStack(spacing: 4) {
+                Text(AppInfo.name).font(.title.bold())
+                Text(AppInfo.versionLine)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                if let commit = AppInfo.commit {
+                    Text(AppInfo.buildDate.map { "Commit \(commit) · built \($0)" } ?? "Commit \(commit)")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+            }
+            Text(AppInfo.summary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 420)
+            HStack(spacing: 18) {
+                Link("GitHub", destination: AppInfo.repository)
+                Link("What's New", destination: AppInfo.changelog)
+                Link("Releases", destination: AppInfo.releases)
+                Link("Licence", destination: AppInfo.licence)
+            }
+            Button(copied ? "Copied" : "Copy Version Details") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(AppInfo.fullDescription, forType: .string)
+                copied = true
+            }
+            .help("Copies the version, build, commit and macOS version, for reporting a problem.")
+            Spacer()
+            Text(AppInfo.copyright)
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

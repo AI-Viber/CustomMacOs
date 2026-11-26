@@ -158,6 +158,8 @@ Sources/
   KeyRemapper.swift     Caps Lock → Hyper/Escape, Shift+Caps → Caps Lock
   KeyboardMappings.swift    hidutil mappings: Caps Lock → F18 and per-keyboard Option/Command swap
   BatteryStatus.swift   battery reading and the battery menu bar icon
+  AppInfo.swift         version details and the About window
+  EventTapThread.swift  the high-priority thread that handles key presses
   MenuReader.swift      reads another app's menus and shortcuts (Accessibility API); key layout helpers
   AppShortcutStore.swift      app shortcut list, macOS App Shortcuts, clash checking, system shortcuts
   AppShortcutTrigger.swift    presses menu items for app shortcuts; tracks the frontmost app
@@ -171,6 +173,7 @@ Tools/MakeIcon.swift    draws the app icon during the build
 Tools/sync-monitor.sh   refreshes Sources/Monitor from ../MenuPulse
 build.sh                compile, bundle, sign, optional install
 release.sh              signed, notarised build for sharing (see Publishing a release)
+CHANGELOG.md            what changed in each version
 CustomMacOS.xcodeproj   Xcode project: ⌘B runs build.sh --install
 ```
 
@@ -190,9 +193,18 @@ One-time setup, with a paid Apple Developer account:
 
 For each release:
 
-1. Raise `CFBundleShortVersionString` and `CFBundleVersion` in `Info.plist`, and commit.
-2. Run `./release.sh`.
-3. On GitHub, open **Releases → Draft a new release**, create a tag such as `v1.2`, attach the zip from `dist/`, and publish. With GitHub's `gh` tool installed, the command the script prints does the same.
+1. Choose the new version number. CustomMacOS uses [semantic versioning](https://semver.org): raise the middle number for new features (1.2.0 → 1.3.0) and the last for fixes only (1.2.0 → 1.2.1).
+2. Set it as `CFBundleShortVersionString` in `Info.plist`, add a section for it at the top of `CHANGELOG.md`, and commit.
+3. Run `./release.sh`.
+4. On GitHub, open **Releases → Draft a new release**, create a tag such as `v1.3.0`, attach the zip from `dist/`, paste in the changelog section, and publish. With GitHub's `gh` tool installed, the command the script prints does the same.
+
+### Version numbers
+
+- The **version** (1.2.0) is set by hand in `Info.plist` for each release.
+- The **build number** is set automatically when the app is built: it's the number of Git commits, so it goes up with every change and matches across Macs building the same code.
+- The **commit** the app was built from, and the build date, are recorded too. A commit ending in `+changes` means the build included edits that weren't committed yet.
+
+All of these show in **Settings → About** and **About CustomMacOS**, where **Copy Version Details** copies them for a bug report.
 
 ## Licence
 

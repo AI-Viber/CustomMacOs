@@ -305,6 +305,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         let prefs = NSMenuItem(title: "Settings…", action: #selector(openSettingsAction), keyEquivalent: ",")
         prefs.target = self
         menu.addItem(prefs)
+        let about = NSMenuItem(title: "About CustomMacOS", action: #selector(showAbout), keyEquivalent: "")
+        about.target = self
+        menu.addItem(about)
         menu.addItem(NSMenuItem(title: "Quit CustomMacOS", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
     }
 
@@ -335,6 +338,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
                 self?.openSettings()
             }
         }
+    }
+
+    @objc private func showAbout() {
+        AppInfo.showAboutPanel()
     }
 
     @objc private func grantAccess() {
@@ -369,7 +376,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         let appItem = NSMenuItem()
         main.addItem(appItem)
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "About CustomMacOS", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        let about = appMenu.addItem(withTitle: "About CustomMacOS", action: #selector(showAbout), keyEquivalent: "")
+        about.target = self
         appMenu.addItem(.separator())
         let prefs = appMenu.addItem(withTitle: "Settings…", action: #selector(openSettingsAction), keyEquivalent: ",")
         prefs.target = self

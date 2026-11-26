@@ -62,6 +62,20 @@ done
 lipo -create -output "$APP/Contents/MacOS/$APP_NAME" "$WORK/$APP_NAME-arm64" "$WORK/$APP_NAME-x86_64"
 
 cp Info.plist "$APP/Contents/Info.plist"
+# Versioning: CFBundleShortVersionString (e.g. 1.2.0) is set by hand in Info.plist for each
+# release. The build number is the number of commits, so it rises with every change and is
+# the same on every Mac building the same commit; the commit hash and date say exactly what
+# was built. Without Git (e.g. a downloaded zip) Info.plist's values are kept.
+PLIST="$APP/Contents/Info.plist"
+if BUILD_NUMBER="$(git rev-list --count HEAD 2>/dev/null)" && [[ -n "$BUILD_NUMBER" ]]; then
+  /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$PLIST"
+  COMMIT="$(git rev-parse --short HEAD)"
+  # Mark builds that include changes not yet committed.
+  if [[ -n "$(git status --porcelain --untracked-files=no 2>/dev/null)" ]]; then COMMIT="$COMMIT+changes"; fi
+  /usr/libexec/PlistBuddy -c "Add :CMOSGitCommit string $COMMIT" "$PLIST"
+fi
+/usr/libexec/PlistBuddy -c "Add :CMOSBuildDate string $(date +%Y-%m-%d)" "$PLIST"
+echo "→ Version $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST") (build $(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST"))"
 if [[ "$RELEASE" == 0 ]]; then
   # Record where the project lives so the app can write its diagnostics logs here.
   # Left out of release builds, which log to ~/Library/Logs/CustomMacOS instead.
