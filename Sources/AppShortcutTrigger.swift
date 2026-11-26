@@ -46,11 +46,22 @@ final class AppShortcutTrigger {
 
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
-    /// bundleID → shortcuts, for quick lookup on every key press.
-    private var byApp: [String: [AppMenuShortcut]] = [:]
-    /// "bundleID|path" for shortcuts the app currently shows in its own menu (handled natively).
-    private var nativeActive: Set<String> = []
     private var storeObserver: AnyCancellable?
+    private var activationObserver: Any?
+
+    /// What the key handler needs, shared with the key-handling thread.
+    private struct State {
+        /// bundleID → shortcuts, for quick lookup on every key press.
+        var byApp: [String: [AppMenuShortcut]] = [:]
+        /// "bundleID|path" for shortcuts the app currently shows in its own menu (handled natively).
+        var nativeActive: Set<String> = []
+        /// The frontmost app, kept up to date from activation notifications.
+        var frontBundleID: String?
+        var frontPID: pid_t = 0
+    }
+    private let state = Locked(State())
+
+    private var byApp: [String: [AppMenuShortcut]] { state.get().byApp }
 
     /// Starts or stops watching keys depending on whether any app shortcuts exist.
     func update() {
@@ -82,8 +93,8 @@ final class AppShortcutTrigger {
                     active.insert(Self.key(s))
                 }
             }
-            DispatchQueue.main.async {
-                self.nativeActive = self.nativeActive.filter { !$0.hasPrefix(bundleID + "|") }.union(active)
+            self.state.update { st in
+                st.nativeActive = st.nativeActive.filter { !$0.hasPrefix(bundleID + "|") }.union(active)
             }
         }
     }
@@ -93,7 +104,26 @@ final class AppShortcutTrigger {
     }
 
     private func rebuildLookup() {
-        byApp = Dictionary(grouping: AppShortcutStore.shared.items, by: { $0.bundleID })
+        let lookup = Dictionary(grouping: AppShortcutStore.shared.items, by: { $0.bundleID })
+        state.update { $0.byApp = lookup }
+    }
+
+    /// Tracks the frontmost app (CustomMacOS included) for the key handler, which can't ask
+    /// NSWorkspace from its own thread.
+    private func trackFrontmostApp() {
+        guard activationObserver == nil else { return }
+        let setFront = { [weak self] (app: NSRunningApplication?) in
+            self?.state.update {
+                $0.frontBundleID = app?.bundleIdentifier
+                $0.frontPID = app?.processIdentifier ?? 0
+            }
+        }
+        setFront(NSWorkspace.shared.frontmostApplication)
+        activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+        ) { note in
+            setFront(note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)
+        }
     }
 
     // MARK: Event tap
@@ -113,16 +143,19 @@ final class AppShortcutTrigger {
             DiagnosticsLog.append("appshortcuts", "could not create key watcher (Accessibility permission?)")
             return
         }
-        let src = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, newTap, 0)
-        CFRunLoopAddSource(CFRunLoopGetMain(), src, .commonModes)
-        CGEvent.tapEnable(tap: newTap, enable: true)
+        trackFrontmostApp()
         tap = newTap
-        runLoopSource = src
+        // Handle keys on their own thread, so nothing on the main thread can delay typing.
+        if let src = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, newTap, 0) {
+            runLoopSource = src
+            EventTapThread.shared.add(src)
+        }
+        CGEvent.tapEnable(tap: newTap, enable: true)
     }
 
     private func stopTap() {
         if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
-        if let runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes) }
+        if let runLoopSource { EventTapThread.shared.remove(runLoopSource) }
         tap = nil
         runLoopSource = nil
     }
@@ -133,10 +166,10 @@ final class AppShortcutTrigger {
             return Unmanaged.passUnretained(event)
         }
         guard type == .keyDown,
-              event.getIntegerValueField(.keyboardEventAutorepeat) == 0,
-              let front = NSWorkspace.shared.frontmostApplication,
-              let bundleID = front.bundleIdentifier,
-              let mine = byApp[bundleID] else { return Unmanaged.passUnretained(event) }
+              event.getIntegerValueField(.keyboardEventAutorepeat) == 0 else { return Unmanaged.passUnretained(event) }
+        let st = state.get()
+        guard let bundleID = st.frontBundleID,
+              let mine = st.byApp[bundleID] else { return Unmanaged.passUnretained(event) }
 
         let keyCode = UInt32(event.getIntegerValueField(.keyboardEventKeycode))
         let flags = event.flags
@@ -147,10 +180,10 @@ final class AppShortcutTrigger {
         if flags.contains(.maskShift) { mods |= Shortcut.shift }
 
         guard let match = mine.first(where: { $0.shortcut.keyCode == keyCode && $0.shortcut.modifiers == mods }),
-              !nativeActive.contains(Self.key(match)) else { return Unmanaged.passUnretained(event) }
+              !st.nativeActive.contains(Self.key(match)) else { return Unmanaged.passUnretained(event) }
 
-        // Ours: swallow the key and press the menu item (off the event tap's thread of control).
-        let pid = front.processIdentifier
+        // Ours: swallow the key and press the menu item on the main thread.
+        let pid = st.frontPID
         DispatchQueue.main.async { Self.press(match, pid: pid) }
         return nil
     }

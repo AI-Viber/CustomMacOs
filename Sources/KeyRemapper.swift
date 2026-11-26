@@ -14,6 +14,15 @@ final class KeyRemapper {
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
 
+    /// Settings the key handler needs, copied here so it never reads AppSettings from the
+    /// key-handling thread.
+    private struct Config {
+        var mode: CapsLockMode = .off
+        var shiftCapsTogglesCapsLock = true
+    }
+    private let config = Locked(Config())
+
+    // Only touched on the key-handling thread.
     private var hyperDown = false
     private var hyperUsed = false
     private var hyperDownAt: TimeInterval = 0
@@ -26,6 +35,7 @@ final class KeyRemapper {
     private let hyperFlags: CGEventFlags = [.maskCommand, .maskControl, .maskAlternate, .maskShift]
 
     func apply(_ mode: CapsLockMode) {
+        settingsChanged(mode: mode)
         if mode == .off {
             stopTap()
             setHIDMapping(enabled: false)
@@ -37,6 +47,13 @@ final class KeyRemapper {
         } else {
             setHIDMapping(enabled: false)
         }
+    }
+
+    /// Copies the settings the key handler uses. Call when they change.
+    func settingsChanged(mode: CapsLockMode? = nil) {
+        let settings = AppSettings.shared
+        config.set(Config(mode: mode ?? settings.capsLockMode,
+                          shiftCapsTogglesCapsLock: settings.shiftCapsTogglesCapsLock))
     }
 
     func shutdown() {
@@ -72,20 +89,22 @@ final class KeyRemapper {
             NSLog("CustomMacOS: event tap unavailable (Accessibility permission missing?)")
             return false
         }
-        let src = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, newTap, 0)
-        CFRunLoopAddSource(CFRunLoopGetMain(), src, .commonModes)
-        CGEvent.tapEnable(tap: newTap, enable: true)
         tap = newTap
-        runLoopSource = src
+        hyperDown = false  // the tap isn't running yet, so this can't race the key handler
+        // Handle keys on their own thread, so nothing on the main thread can delay typing.
+        if let src = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, newTap, 0) {
+            runLoopSource = src
+            EventTapThread.shared.add(src)
+        }
+        CGEvent.tapEnable(tap: newTap, enable: true)
         return true
     }
 
     private func stopTap() {
         if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
-        if let runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes) }
+        if let runLoopSource { EventTapThread.shared.remove(runLoopSource) }
         tap = nil
         runLoopSource = nil
-        hyperDown = false
     }
 
     private func handle(_ type: CGEventType, _ event: CGEvent) -> Unmanaged<CGEvent>? {
@@ -98,15 +117,15 @@ final class KeyRemapper {
         }
         guard type == .keyDown || type == .keyUp else { return Unmanaged.passUnretained(event) }
 
-        let settings = AppSettings.shared
-        let mode = settings.capsLockMode
+        let cfg = config.get()
+        let mode = cfg.mode
         let code = event.getIntegerValueField(.keyboardEventKeycode)
 
         if code == f18 {
             let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
             if type == .keyDown {
                 // Shift + Caps Lock → real Caps Lock
-                if !isRepeat && !hyperDown && settings.shiftCapsTogglesCapsLock && event.flags.contains(.maskShift) {
+                if !isRepeat && !hyperDown && cfg.shiftCapsTogglesCapsLock && event.flags.contains(.maskShift) {
                     CapsLock.toggle()
                     swallowNextCapsUp = true
                     return nil

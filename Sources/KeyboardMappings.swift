@@ -10,6 +10,9 @@ struct KeyboardInfo: Identifiable, Hashable {
     let name: String
     let builtIn: Bool
     let transport: String
+    /// The keyboard's current IOKit device entries. A keyboard that reconnects (for example a
+    /// wireless receiver waking up) gets new entries, and with them loses its mapping.
+    var entryIDs: Set<UInt64> = []
 
     /// Identifies the model of keyboard, so the setting follows it between ports and reconnects.
     var id: String { "\(vendorID):\(productID)" }
@@ -49,6 +52,12 @@ final class KeyboardMappings: ObservableObject {
     private var iterators: [io_iterator_t] = []
     private var pendingRefresh: DispatchWorkItem?
     private let swappedKey = "swapOptionCommandKeyboards"
+    /// Device entries the current mappings have been applied to.
+    private var appliedEntryIDs: Set<UInt64> = []
+    private var hasApplied = false
+    /// hidutil runs here, never on the main thread: each run takes a noticeable fraction of a
+    /// second, and the main thread must stay free.
+    private let hidQueue = DispatchQueue(label: "CustomMacOS.hidutil", qos: .userInitiated)
 
     // HID keyboard usages (page 7) as hidutil expects them: 0x700000000 | usage.
     private static func usage(_ u: Int) -> Int { 0x7_0000_0000 | u }
@@ -114,27 +123,53 @@ final class KeyboardMappings: ObservableObject {
     /// Removes every mapping, putting all keyboards back to normal (used when quitting).
     func shutdown() {
         capsToF18 = false
-        hidutil(matching: nil, mappings: [])
-        for kb in connected { hidutil(matching: kb, mappings: []) }
+        let keyboards = connected
+        // Wait for this one: the app is about to exit.
+        hidQueue.sync {
+            Self.hidutil(matching: nil, mappings: [])
+            for kb in keyboards { Self.hidutil(matching: kb, mappings: []) }
+        }
     }
 
     // MARK: Applying
 
+    private static let swapEntries: [(Int, Int)] = [
+        (leftOption, leftCommand), (leftCommand, leftOption),
+        (rightOption, rightCommand), (rightCommand, rightOption),
+    ]
+
+    private var capsEntries: [(Int, Int)] { capsToF18 ? [(Self.capsLock, Self.f18)] : [] }
+
+    /// Applies the mappings to all keyboards: after a setting changes.
     func apply() {
-        let caps: [(Int, Int)] = capsToF18 ? [(Self.capsLock, Self.f18)] : []
-        let swap: [(Int, Int)] = [(Self.leftOption, Self.leftCommand), (Self.leftCommand, Self.leftOption),
-                                  (Self.rightOption, Self.rightCommand), (Self.rightCommand, Self.rightOption)]
+        let caps = capsEntries
         // All keyboards first; then each connected keyboard explicitly, so a keyboard that had
         // the swap turned off is reset rather than keeping its old mapping.
-        hidutil(matching: nil, mappings: caps)
-        for kb in connected {
-            hidutil(matching: kb, mappings: isSwapped(kb.id) ? caps + swap : caps)
-        }
+        let jobs = connected.map { ($0, isSwapped($0.id) ? caps + Self.swapEntries : caps) }
+        appliedEntryIDs = connected.reduce(into: Set<UInt64>()) { $0.formUnion($1.entryIDs) }
+        hasApplied = true
         let names = connected.filter { isSwapped($0.id) }.map(\.name)
-        DiagnosticsLog.append("keyboard", "applied: capsToF18=\(capsToF18), Option/Command swapped on \(names.isEmpty ? "none" : names.joined(separator: ", "))")
+        let summary = "applied: capsToF18=\(capsToF18), Option/Command swapped on \(names.isEmpty ? "none" : names.joined(separator: ", "))"
+        hidQueue.async {
+            Self.hidutil(matching: nil, mappings: caps)
+            for (kb, mappings) in jobs { Self.hidutil(matching: kb, mappings: mappings) }
+            DiagnosticsLog.append("keyboard", summary)
+        }
     }
 
-    private func hidutil(matching kb: KeyboardInfo?, mappings: [(Int, Int)]) {
+    /// Applies the mappings to keyboards that have just (re)connected. Each one starts with no
+    /// mapping; the others are left alone, so typing on them isn't disturbed.
+    private func apply(to keyboards: [KeyboardInfo]) {
+        let caps = capsEntries
+        let jobs = keyboards.map { ($0, isSwapped($0.id) ? caps + Self.swapEntries : caps) }
+        let names = keyboards.map(\.name).joined(separator: ", ")
+        hidQueue.async {
+            for (kb, mappings) in jobs { Self.hidutil(matching: kb, mappings: mappings) }
+            DiagnosticsLog.append("keyboard", "reconnected, mapping reapplied: \(names)")
+        }
+    }
+
+    private static func hidutil(matching kb: KeyboardInfo?, mappings: [(Int, Int)]) {
         let entries = mappings.map {
             "{\"HIDKeyboardModifierMappingSrc\":\($0.0),\"HIDKeyboardModifierMappingDst\":\($0.1)}"
         }
@@ -169,8 +204,17 @@ final class KeyboardMappings: ObservableObject {
     }
 
     private func refresh() {
-        connected = Self.scanKeyboards()
-        apply()
+        let found = Self.scanKeyboards()
+        if found != connected { connected = found }
+        guard hasApplied else {
+            apply()
+            return
+        }
+        // Only keyboards with new device entries need their mapping again. Other devices
+        // (mice, trackpads, a receiver's mouse half waking up) change nothing.
+        let fresh = found.filter { !$0.entryIDs.isSubset(of: appliedEntryIDs) }
+        appliedEntryIDs = found.reduce(into: Set<UInt64>()) { $0.formUnion($1.entryIDs) }
+        if !fresh.isEmpty { apply(to: fresh) }
     }
 
     private static func drain(_ iterator: io_iterator_t) {
@@ -203,9 +247,13 @@ final class KeyboardMappings: ObservableObject {
             let name = (property(service, kIOHIDProductKey) as? String) ?? "Keyboard"
             let builtIn = (property(service, "Built-In") as? Bool)
                 ?? ["SPI", "FIFO", "AID"].contains(transport.uppercased())
-            let kb = KeyboardInfo(vendorID: vendor, productID: product, name: name,
-                                  builtIn: builtIn, transport: transport)
-            if found[kb.id] == nil { found[kb.id] = kb }
+            var entryID: UInt64 = 0
+            IORegistryEntryGetRegistryEntryID(service, &entryID)
+            var kb = found["\(vendor):\(product)"]
+                ?? KeyboardInfo(vendorID: vendor, productID: product, name: name,
+                                builtIn: builtIn, transport: transport)
+            kb.entryIDs.insert(entryID)
+            found[kb.id] = kb
         }
         return found.values.sorted {
             if $0.builtIn != $1.builtIn { return $0.builtIn }  // built-in first

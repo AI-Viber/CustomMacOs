@@ -33,6 +33,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         settings.$capsLockMode.dropFirst()
             .sink { m in DispatchQueue.main.async { KeyRemapper.shared.apply(m) } }
             .store(in: &cancellables)
+        settings.$shiftCapsTogglesCapsLock.dropFirst()
+            .sink { _ in DispatchQueue.main.async { KeyRemapper.shared.settingsChanged() } }
+            .store(in: &cancellables)
         settings.$dragToSnap.dropFirst()
             .sink { on in DispatchQueue.main.async { DragSnapper.shared.setEnabled(on) } }
             .store(in: &cancellables)
